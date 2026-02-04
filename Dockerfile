@@ -1,5 +1,5 @@
-# Node.js build stage
-FROM node:18-alpine AS build
+# Node.js build and serve stage
+FROM node:18-alpine
 
 WORKDIR /app
 
@@ -15,14 +15,11 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Nginx production stage
-FROM nginx:alpine
+# Install serve to host static files
+RUN npm install -g serve
 
-# Copy the build output from the previous stage to Nginx html folder
-COPY --from=build /app/dist /usr/share/nginx/html
+# Expose port 8000
+EXPOSE 8000
 
-# Expose port 80
-EXPOSE 80
-
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Serve the built application on port 8000
+CMD ["serve", "-s", "dist", "-l", "8000"]

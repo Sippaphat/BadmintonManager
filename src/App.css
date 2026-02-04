@@ -1,15 +1,27 @@
+:root {
+  --primary: #006400;
+  --accent: #32CD32;
+  --bg: #F2F2F2;
+  --card: #FFFFFF;
+  --text: #333333;
+  --red: #D32F2F;
+  --blue: #1976D2;
+  --gray: #757575;
+  --lightGreen: #E8F5E9;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #F2F2F2;
-  color: #333;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .app-root {
   max-width: 600px;
   margin: 0 auto;
   min-height: 100vh;
-  background-color: #F2F2F2;
+  background-color: var(--bg);
   position: relative;
 }
 
@@ -36,16 +48,16 @@ button {
 .headerText {
   font-size: 24px;
   font-weight: bold;
-  color: #006400;
+  color: var(--primary);
   margin: 0;
 }
 
 .subHeader {
-  color: #757575;
+  color: var(--gray);
 }
 
 .section {
-  background-color: #FFFFFF;
+  background-color: var(--card);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
@@ -56,7 +68,7 @@ button {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
-  color: #333333;
+  color: var(--text);
   display: block;
 }
 
@@ -82,7 +94,7 @@ button {
 }
 
 .courtBtn.active {
-  background-color: #006400;
+  background-color: var(--primary);
 }
 
 .courtBtnText {
@@ -108,12 +120,13 @@ button {
   border-radius: 8px;
   padding: 10px;
   margin-right: 10px;
-  background-color: #fff;
+  background-color: var(--card);
+  color: var(--text);
   font-size: 16px;
 }
 
 .addBtn {
-  background-color: #32CD32;
+  background-color: var(--accent);
   padding: 0 20px;
   border-radius: 8px;
   border: none;
@@ -140,7 +153,7 @@ button {
 
 .playerRowText {
   font-size: 16px;
-  color: #333333;
+  color: var(--text);
   flex: 1;
   text-align: left;
 }
@@ -160,17 +173,17 @@ button {
 }
 
 .editText {
-  color: #1976D2;
+  color: var(--blue);
   font-weight: bold;
 }
 
 .removeText {
-  color: #D32F2F;
+  color: var(--red);
   font-weight: bold;
 }
 
 .mainBtn {
-  background-color: #006400;
+  background-color: var(--primary);
   padding: 18px;
   border-radius: 12px;
   border: none;
@@ -205,36 +218,393 @@ button {
 .headerTextCompact {
   font-size: 20px;
   font-weight: bold;
-  color: #006400;
+  color: var(--primary);
   margin: 0;
 }
 
 .resetBtn {
   background: none;
-  border: 1px solid #D32F2F;
+  border: 1px solid var(--red);
   border-radius: 4px;
   padding: 6px 10px;
   cursor: pointer;
 }
 
 .resetBtnText {
-  color: #D32F2F;
+  color: var(--red);
   font-size: 14px;
 }
 
 .sectionHeader {
   font-size: 18px;
   font-weight: bold;
-  color: #333333;
+  color: var(--text);
   margin: 10px 0 10px 4px;
 }
 
 .courtCard {
-  background-color: #FFFFFF;
+  background-color: var(--card);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Main Page Scoreboard */
+.scoreboardMain {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: linear-gradient(135deg, var(--primary) 0%, #228B22 100%);
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 3px 10px rgba(0,100,0,0.2);
+}
+
+.scoreTeamMain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.scoreTeamMain.selectableTeam {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 10px;
+  opacity: 0.8;
+}
+
+.scoreTeamMain.selectableTeam:hover {
+  background-color: rgba(255,255,255,0.15);
+  opacity: 1;
+}
+
+.scoreTeamMain.selectedTeam {
+  background-color: rgba(255,215,0,0.3);
+  opacity: 1;
+  box-shadow: 0 0 15px rgba(255,215,0,0.5);
+}
+
+.teamLabelMain {
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  opacity: 0.9;
+}
+
+.scoreControlsMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scoreBtnMain {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.scoreBtnMain:hover {
+  background-color: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+.scoreBtnMain:active {
+  transform: scale(0.95);
+}
+
+.scoreDisplayMain {
+  min-width: 50px;
+  height: 50px;
+  background-color: white;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--primary);
+  position: relative;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.scoreDividerMain {
+  font-size: 32px;
+  color: white;
+  font-weight: bold;
+  opacity: 0.5;
+}
+
+/* Main Page Visual Court */
+.badmintonCourtMain {
+  background: linear-gradient(180deg, #2d5016 0%, #3d6b1f 100%);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.courtSideMain {
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+
+.playerPositionsMain {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.playerSlotMain {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playerCardMain {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+  position: relative;
+}
+
+.playerCardMain.serving {
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 4px 15px rgba(255,165,0,0.5);
+}
+
+.playerCardMain.serving .playerLabelMain {
+  color: white;
+  font-weight: bold;
+}
+
+.playerCardMain.selectable {
+  cursor: pointer;
+  border: 2px dashed rgba(76, 175, 80, 0.5);
+  box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);
+}
+
+.playerCardMain.selectable:hover {
+  transform: scale(1.05);
+  border-color: #4CAF50;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.5);
+}
+
+.selectServeHint {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: #4CAF50;
+  font-weight: bold;
+  background-color: rgba(255,255,255,0.9);
+  padding: 2px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.serveIconOnPlayer {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 18px;
+  animation: bounce 1s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.playerIconMain {
+  font-size: 36px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.playerPhotoMain {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+.playerCardMain.hasPhoto {
+  padding: 0;
+  overflow: hidden;
+}
+
+.playerCardMain.hasPhoto .playerLabelMain {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.85);
+  padding: 4px 2px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  z-index: 1;
+  font-size: 12px;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+}
+
+.playerLabelMain {
+  font-size: 11px;
+  font-weight: bold;
+  color: #333;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.emptySlotMain {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255,255,255,0.1);
+  border: 2px dashed rgba(255,255,255,0.3);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.emptyIconMain {
+  font-size: 28px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* Main Page Net */
+.courtNetMain {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 4px 0;
+}
+
+.netLineMain {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    white 0px,
+    white 6px,
+    transparent 6px,
+    transparent 10px
+  );
+  opacity: 0.8;
+}
+
+.netLabelMain {
+  background-color: rgba(0,0,0,0.3);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 15px;
+  font-size: 10px;
+  font-weight: bold;
+  z-index: 1;
+  letter-spacing: 1.5px;
+}
+
+/* Court Actions on Main Page */
+.courtActionsMain {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.switchServeBtnMain, .customBtnMain, .finishBtnMain {
+  padding: 10px 8px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.switchServeBtnMain {
+  background-color: #FFA500;
+  color: white;
+}
+
+.switchServeBtnMain:hover {
+  background-color: #FF8C00;
+  transform: translateY(-2px);
+}
+
+.customBtnMain {
+  background-color: #1976D2;
+  color: white;
+}
+
+.customBtnMain:hover {
+  background-color: #1565C0;
+  transform: translateY(-2px);
+}
+
+.finishBtnMain {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.finishBtnMain:hover {
+  background-color: #e0e0e0;
+}
+
+/* Empty Court Message */
+.emptyCourtMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.emptyCourtIcon {
+  font-size: 48px;
+  margin-bottom: 10px;
+  opacity: 0.3;
+}
+
+.emptyCourtText {
+  font-size: 14px;
+  color: #999;
+  font-weight: 500;
 }
 
 .courtHeader {
@@ -492,4 +862,449 @@ button {
 .modalBtnTextSave {
   color: white;
   font-weight: bold;
+}
+/* Court Modal Styles */
+.courtModalView {
+  width: 95%;
+  max-width: 600px;
+  max-height: 90vh;
+  background-color: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.courtModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.closeModalBtn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  padding: 5px;
+  line-height: 1;
+}
+
+.closeModalBtn:hover {
+  color: #333;
+}
+
+/* Scoreboard */
+.scoreboard {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: linear-gradient(135deg, #006400 0%, #228B22 100%);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(0,100,0,0.2);
+}
+
+.scoreTeam {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.teamLabel {
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  opacity: 0.9;
+}
+
+.scoreControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scoreBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.scoreBtn:hover {
+  background-color: rgba(255,255,255,0.3);
+  transform: scale(1.1);
+}
+
+.scoreBtn:active {
+  transform: scale(0.95);
+}
+
+.scoreDisplay {
+  min-width: 60px;
+  height: 60px;
+  background-color: white;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+  color: #006400;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.scoreDivider {
+  font-size: 40px;
+  color: white;
+  font-weight: bold;
+  opacity: 0.5;
+}
+
+/* Game Controls */
+.gameControls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.switchServeBtn, .resetScoreBtn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.switchServeBtn {
+  background-color: #FFA500;
+  color: white;
+}
+
+.switchServeBtn:hover {
+  background-color: #FF8C00;
+  transform: translateY(-2px);
+}
+
+.resetScoreBtn {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.resetScoreBtn:hover {
+  background-color: #e0e0e0;
+}
+
+/* Badminton Court Visualization */
+.badmintonCourt {
+  background: linear-gradient(180deg, #2d5016 0%, #3d6b1f 100%);
+  border-radius: 15px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+.courtSide {
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 8px;
+}
+
+.courtSideLabel {
+  text-align: center;
+  color: white;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 10px;
+  opacity: 0.9;
+}
+
+.playerPositions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.playerSlot {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.playerCard {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+
+.playerCard:hover {
+  transform: scale(1.05);
+}
+
+.removePlayerBtnSmall {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #ff5252;
+  color: white;
+  border: none;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s;
+  opacity: 0.8;
+}
+
+.removePlayerBtnSmall:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.playerIcon {
+  font-size: 40px;
+  margin-bottom: 5px;
+}
+
+.playerLabel {
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+  text-align: center;
+  word-break: break-word;
+}
+
+.emptySlot {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255,255,255,0.1);
+  border: 2px dashed rgba(255,255,255,0.3);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.emptyIcon {
+  font-size: 32px;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 5px;
+}
+
+.emptyLabel {
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Net */
+.courtNet {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 5px 0;
+}
+
+.netLine {
+  position: absolute;
+  width: 100%;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    white 0px,
+    white 8px,
+    transparent 8px,
+    transparent 12px
+  );
+  opacity: 0.8;
+}
+
+.netLabel {
+  background-color: rgba(0,0,0,0.3);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: bold;
+  z-index: 1;
+  letter-spacing: 2px;
+}
+
+/* Available Players Section */
+.availableSection {
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid #e0e0e0;
+}
+
+.availableTitle {
+  font-size: 14px;
+  font-weight: bold;
+  color: #006400;
+  margin: 0 0 10px 0;
+}
+
+.availablePlayersList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.availablePlayerItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.availablePlayerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.availablePlayerName {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.availablePlayerCount {
+  font-size: 11px;
+  color: #757575;
+}
+
+.addPlayerBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  font-weight: bold;
+  transition: transform 0.1s;
+  background-color: #4CAF50;
+  color: white;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.addPlayerBtn:hover:not(:disabled) {
+  background-color: #45a049;
+  transform: scale(1.1);
+}
+
+.addPlayerBtn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.addPlayerText {
+  color: white;
+  line-height: 1;
+}
+
+/* Court Actions */
+.courtActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.courtButtonsRow {
+  display: flex;
+  gap: 8px;
+}
+
+.customBtn {
+  background-color: #1976D2;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+}
+
+.customBtn:hover {
+  background-color: #1565C0;
+}
+
+.customBtnText {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.finishBtn {
+  flex: 1;
+}
+
+.finishBtnText {
+  font-weight: bold;
+}
+
+.partialTeam {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+}
+
+.needMore {
+  font-size: 13px;
+  color: #FF9800;
+  font-weight: bold;
+  margin-top: 5px;
 }

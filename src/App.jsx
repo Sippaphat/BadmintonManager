@@ -39,6 +39,10 @@ export default function App() {
   const [editingPlayer, setEditingPlayer] = useState(null); // เก็บ Object คนที่กำลังแก้
   const [tempName, setTempName] = useState(''); // เก็บชื่อชั่วคราวตอนพิมพ์แก้
 
+  // --- STATE: COURT MODAL ---
+  const [isCourtModalVisible, setCourtModalVisible] = useState(false);
+  const [selectedCourtId, setSelectedCourtId] = useState(null);
+
   // --- ACTIONS: SETUP ---
   const addPlayer = () => {
     if (!playerInput.trim()) return;
@@ -102,7 +106,10 @@ export default function App() {
     }
     const initCourts = Array.from({ length: numberOfCourts }, (_, i) => ({
       id: i + 1,
-      players: [] 
+      players: [],
+      score: { team1: 0, team2: 0 },
+      serving: 'team1',
+      servingPlayerIndex: { team1: 0, team2: 1 } // Team 1 (Top): Even->0, Team 2 (Bottom): Even->1
     }));
     setCourts(initCourts);
     setIsGameStarted(true);
@@ -154,12 +161,188 @@ export default function App() {
           return p;
         });
         const updatedCourts = courts.map(c => {
-          if (c.id === courtId) return { ...c, players: [] };
+          if (c.id === courtId) return { ...c, players: [], score: { team1: 0, team2: 0 }, serving: 'team1', servingPlayerIndex: { team1: 0, team2: 1 } };
           return c;
         });
         setPlayers(updatedPlayers);
         setCourts(updatedCourts);
     }
+  };
+
+  // --- ACTIONS: CUSTOM COURT MANAGEMENT ---
+  const openCourtModal = (courtId) => {
+    setSelectedCourtId(courtId);
+    setCourtModalVisible(true);
+  };
+
+  const addPlayerToCourt = (playerId) => {
+    const court = courts.find(c => c.id === selectedCourtId);
+    if (court.players.length >= 4) {
+      alert('เต็มแล้ว: สนามนี้มีคนครบ 4 คนแล้ว');
+      return;
+    }
+
+    const player = players.find(p => p.id === playerId);
+    if (player.isPlaying) {
+      alert('คนนี้เล่นอยู่: ' + player.name + ' กำลังเล่นในสนามอื่นอยู่');
+      return;
+    }
+
+    // Add player to court
+    const updatedCourts = courts.map(c => {
+      if (c.id === selectedCourtId) {
+        return { ...c, players: [...c.players, player] };
+      }
+      return c;
+    });
+
+    // Update player status
+    const updatedPlayers = players.map(p => {
+      if (p.id === playerId) {
+        return { ...p, isPlaying: true, playCount: p.playCount + 1 };
+      }
+      return p;
+    });
+
+    setCourts(updatedCourts);
+    setPlayers(updatedPlayers);
+  };
+
+  const removePlayerFromCourt = (playerId) => {
+    const court = courts.find(c => c.id === selectedCourtId);
+    
+    // Remove player from court
+    const updatedCourts = courts.map(c => {
+      if (c.id === selectedCourtId) {
+        return { ...c, players: c.players.filter(p => p.id !== playerId) };
+      }
+      return c;
+    });
+
+    // Update player status and reduce play count
+    const updatedPlayers = players.map(p => {
+      if (p.id === playerId) {
+        return { ...p, isPlaying: false, playCount: Math.max(0, p.playCount - 1) };
+      }
+      return p;
+    });
+
+    setCourts(updatedCourts);
+    setPlayers(updatedPlayers);
+  };
+
+  const closeCourtModal = () => {
+    setCourtModalVisible(false);
+    setSelectedCourtId(null);
+  };
+
+  const incrementScore = (courtId, team) => {
+    const updatedCourts = courts.map(c => {
+      if (c.id === courtId) {
+        const newScore = { ...c.score };
+        newScore[team] = newScore[team] + 1;
+        
+        let newPlayers = [...c.players];
+        const newServingPlayerIndex = { ...c.servingPlayerIndex };
+        
+        // Determine correct serve position based on NEW score
+        // Team 1 (Top): Even => Right (Viewer Left, Index 0), Odd => Left (Viewer Right, Index 1)
+        // Team 2 (Bottom): Even => Right (Viewer Right, Index 1), Odd => Left (Viewer Left, Index 0)
+        const isEvenScore = newScore[team] % 2 === 0;
+        let correctServerIndex;
+        if (team === 'team1') {
+          correctServerIndex = isEvenScore ? 0 : 1;
+        } else {
+          correctServerIndex = isEvenScore ? 1 : 0;
+        }
+        
+        const teamStartIdx = team === 'team1' ? 0 : 2;
+        
+        if (c.serving === team && c.players.length === 4) {
+          // Same team scores consecutively
+          // The SAME PLAYER continues serving but from OPPOSITE SIDE
+          // So we always swap the two players
+          const temp = newPlayers[teamStartIdx];
+          newPlayers[teamStartIdx] = newPlayers[teamStartIdx + 1];
+          newPlayers[teamStartIdx + 1] = temp;
+          
+          // After swap, the serving player is now at the opposite index
+          // Update to match the score-based position
+          newServingPlayerIndex[team] = correctServerIndex;
+        } else if (c.players.length === 4) {
+          // Serve changes to the scoring team
+          // Set the serving player index based on score
+          newServingPlayerIndex[team] = correctServerIndex;
+        }
+        
+        return { ...c, score: newScore, serving: team, servingPlayerIndex: newServingPlayerIndex, players: newPlayers };
+      }
+      return c;
+    });
+    setCourts(updatedCourts);
+  };
+
+  const decrementScore = (courtId, team) => {
+    const updatedCourts = courts.map(c => {
+      if (c.id === courtId) {
+        const newScore = { ...c.score };
+        newScore[team] = Math.max(0, newScore[team] - 1);
+        
+        // Determine serve based on who would have scored last
+        let serving = 'team1';
+        if (newScore.team1 === 0 && newScore.team2 === 0) {
+          serving = 'team1';
+        } else if (newScore.team1 >= newScore.team2) {
+          serving = 'team1';
+        } else {
+          serving = 'team2';
+        }
+        
+        // Reset serving player index when going back
+        const newServingPlayerIndex = { ...c.servingPlayerIndex };
+        
+        // Recalculate correct position for the serving team
+        const isEvenScore = newScore[serving] % 2 === 0;
+        let correctServerIndex;
+        if (serving === 'team1') {
+          correctServerIndex = isEvenScore ? 0 : 1;
+        } else {
+          correctServerIndex = isEvenScore ? 1 : 0;
+        }
+        newServingPlayerIndex[serving] = correctServerIndex;
+        
+        return { ...c, score: newScore, serving: serving, servingPlayerIndex: newServingPlayerIndex };
+      }
+      return c;
+    });
+    setCourts(updatedCourts);
+  };
+
+  const resetScore = () => {
+    if (window.confirm('รีเซ็ตคะแนน?')) {
+      const updatedCourts = courts.map(c => {
+        if (c.id === selectedCourtId) {
+          return { ...c, score: { team1: 0, team2: 0 }, serving: 'team1', servingPlayerIndex: { team1: 0, team2: 1 } };
+        }
+        return c;
+      });
+      setCourts(updatedCourts);
+    }
+  };
+
+  const setServingPlayer = (courtId, team, playerIdx) => {
+    const updatedCourts = courts.map(c => {
+      if (c.id === courtId) {
+        // Only allow changing serve at 0-0
+        if (c.score.team1 === 0 && c.score.team2 === 0) {
+          const newServingPlayerIndex = { ...c.servingPlayerIndex };
+          newServingPlayerIndex[team] = playerIdx;
+          return { ...c, serving: team, servingPlayerIndex: newServingPlayerIndex };
+        }
+      }
+      return c;
+    });
+    setCourts(updatedCourts);
   };
 
   // --- RENDER HELPERS ---
@@ -236,51 +419,185 @@ export default function App() {
         <div className="gameContent">
           {/* Courts Section */}
           <h3 className="sectionHeader">🏸 สนามแข่ง ({numberOfCourts})</h3>
-          {courts.map((court) => (
-            <div key={court.id} className="courtCard">
-              <div className="courtHeader">
-                <span className="courtTitle">คอร์ด {court.id}</span>
-                {court.players.length > 0 ? (
-                  <div className="playingBadge">
-                     <span className="playingText">กำลังแข่ง ⚡️</span>
+          {courts.map((court) => {
+            const team1Players = court.players.slice(0, 2);
+            const team2Players = court.players.slice(2, 4);
+            const hasPlayers = court.players.length > 0;
+
+            return (
+              <div key={court.id} className="courtCard">
+                <div className="courtHeader">
+                  <span className="courtTitle">คอร์ด {court.id}</span>
+                  {hasPlayers ? (
+                    <div className="playingBadge">
+                       <span className="playingText">กำลังแข่ง ⚡️</span>
+                    </div>
+                  ) : (
+                    <div className="freeBadge">
+                       <span className="freeText">ว่าง</span>
+                    </div>
+                  )}
+                </div>
+
+                {hasPlayers ? (
+                  <div>
+                    {/* Scoreboard */}
+                    <div className="scoreboardMain">
+                      <div 
+                        className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4 ? 'selectableTeam' : ''} ${court.serving === 'team1' && court.score.team1 === 0 && court.score.team2 === 0 ? 'selectedTeam' : ''}`}
+                        onClick={() => {
+                          if (court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4) {
+                            setServingPlayer(court.id, 'team1', 0);
+                          }
+                        }}
+                      >
+                        <div className="teamLabelMain">ทีม 1 {court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4 && court.serving === 'team1' && <span>🏸</span>}</div>
+                        <div className="scoreControlsMain">
+                          <button className="scoreBtnMain" onClick={(e) => {
+                            e.stopPropagation();
+                            decrementScore(court.id, 'team1');
+                          }}>−</button>
+                          <div className="scoreDisplayMain">
+                            {court.score.team1}
+                          </div>
+                          <button className="scoreBtnMain" onClick={(e) => {
+                            e.stopPropagation();
+                            incrementScore(court.id, 'team1');
+                          }}>+</button>
+                        </div>
+                      </div>
+                      <div className="scoreDividerMain">:</div>
+                      <div 
+                        className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4 ? 'selectableTeam' : ''} ${court.serving === 'team2' && court.score.team1 === 0 && court.score.team2 === 0 ? 'selectedTeam' : ''}`}
+                        onClick={() => {
+                          if (court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4) {
+                            setServingPlayer(court.id, 'team2', 1);
+                          }
+                        }}
+                      >
+                        <div className="teamLabelMain">ทีม 2 {court.score.team1 === 0 && court.score.team2 === 0 && court.players.length === 4 && court.serving === 'team2' && <span>🏸</span>}</div>
+                        <div className="scoreControlsMain">
+                          <button className="scoreBtnMain" onClick={(e) => {
+                            e.stopPropagation();
+                            decrementScore(court.id, 'team2');
+                          }}>−</button>
+                          <div className="scoreDisplayMain">
+                            {court.score.team2}
+                          </div>
+                          <button className="scoreBtnMain" onClick={(e) => {
+                            e.stopPropagation();
+                            incrementScore(court.id, 'team2');
+                          }}>+</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Visual Court */}
+                    <div className="badmintonCourtMain">
+                      {/* Team 1 Side */}
+                      <div className="courtSideMain team1Side">
+                        <div className="playerPositionsMain">
+                          {[0, 1].map((idx) => {
+                            const player = team1Players[idx];
+                            const isServing = court.serving === 'team1' && idx === court.servingPlayerIndex?.team1;
+                            
+                            return (
+                              <div key={idx} className="playerSlotMain">
+                                {player ? (
+                                  <div className={`playerCardMain ${isServing ? 'serving' : ''}`}>
+                                    <div className="playerIconMain">
+                                      {isServing && <span className="serveIconOnPlayer">🏸</span>}
+                                      👤
+                                    </div>
+                                    <div className="playerLabelMain">{player.name}</div>
+                                  </div>
+                                ) : (
+                                  <div className="emptySlotMain">
+                                    <div className="emptyIconMain">+</div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Net */}
+                      <div className="courtNetMain">
+                        <div className="netLineMain"></div>
+                        <div className="netLabelMain">NET</div>
+                      </div>
+
+                      {/* Team 2 Side */}
+                      <div className="courtSideMain team2Side">
+                        <div className="playerPositionsMain">
+                          {[0, 1].map((idx) => {
+                            const player = team2Players[idx];
+                            const isServing = court.serving === 'team2' && idx === court.servingPlayerIndex?.team2;
+                            
+                            return (
+                              <div key={idx} className="playerSlotMain">
+                                {player ? (
+                                  <div className={`playerCardMain ${isServing ? 'serving' : ''}`}>
+                                    <div className="playerIconMain">
+                                      {isServing && <span className="serveIconOnPlayer">🏸</span>}
+                                      👤
+                                    </div>
+                                    <div className="playerLabelMain">{player.name}</div>
+                                  </div>
+                                ) : (
+                                  <div className="emptySlotMain">
+                                    <div className="emptyIconMain">+</div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="courtActionsMain">
+                      <button 
+                        className="customBtnMain" 
+                        onClick={() => openCourtModal(court.id)}
+                      >
+                        ⚙️ จัดคน
+                      </button>
+                      <button 
+                        className="finishBtnMain" 
+                        onClick={() => finishMatch(court.id)}
+                      >
+                        🏁 จบเกม
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="freeBadge">
-                     <span className="freeText">ว่าง</span>
+                  <div>
+                    <div className="emptyCourtMessage">
+                      <span className="emptyCourtIcon">🏸</span>
+                      <span className="emptyCourtText">สนามว่าง - พร้อมเล่น</span>
+                    </div>
+                    <div className="courtButtonsRow">
+                      <button 
+                        className="startMatchBtn" 
+                        onClick={() => assignMatchToCourt(court.id)}
+                      >
+                        <span className="startMatchBtnText">🎲 สุ่มคน</span>
+                      </button>
+                      <button 
+                        className="customBtn" 
+                        onClick={() => openCourtModal(court.id)}
+                      >
+                        <span className="customBtnText">⚙️ จัดคนเอง</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {court.players.length === 4 ? (
-                <div>
-                  <div className="matchup">
-                    <div className="team">
-                      <span className="pName">{court.players[0].name}</span>
-                      <span className="pName">{court.players[1].name}</span>
-                    </div>
-                    <span className="vs">VS</span>
-                    <div className="team">
-                      <span className="pName">{court.players[2].name}</span>
-                      <span className="pName">{court.players[3].name}</span>
-                    </div>
-                  </div>
-                  <button 
-                    className="finishBtn" 
-                    onClick={() => finishMatch(court.id)}
-                  >
-                    <span className="finishBtnText">🏁 จบเกม (เคลียร์สนาม)</span>
-                  </button>
-                </div>
-              ) : (
-                <button 
-                  className="startMatchBtn" 
-                  onClick={() => assignMatchToCourt(court.id)}
-                >
-                  <span className="startMatchBtnText">จัดตัวลงสนาม +</span>
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           {/* Player Stats Section */}
           <h3 className="sectionHeader">📊 สถิติ & คิว (กดที่ชื่อเพื่อแก้)</h3>
@@ -339,6 +656,155 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* --- COURT MODAL --- */}
+      {isCourtModalVisible && selectedCourtId && (() => {
+        const currentCourt = courts.find(c => c.id === selectedCourtId);
+        const courtPlayers = currentCourt?.players || [];
+        const team1Players = courtPlayers.slice(0, 2);
+        const team2Players = courtPlayers.slice(2, 4);
+        const availablePlayers = players.filter(p => !p.isPlaying).sort((a, b) => a.playCount - b.playCount);
+
+        return (
+          <div className="modalOverlay" onClick={closeCourtModal}>
+            <div className="courtModalView" onClick={(e) => e.stopPropagation()}>
+              <div className="courtModalHeader">
+                <h3 className="modalTitle">🏸 คอร์ด {selectedCourtId}</h3>
+                <button className="closeModalBtn" onClick={closeCourtModal}>✕</button>
+              </div>
+
+              {/* Scoreboard */}
+              <div className="scoreboard">
+                <div className="scoreTeam">
+                  <div className="teamLabel">ทีม 1</div>
+                  <div className="scoreControls">
+                    <button className="scoreBtn" onClick={() => decrementScore(selectedCourtId, 'team1')}>−</button>
+                    <div className="scoreDisplay">
+                      {currentCourt.score.team1}
+                    </div>
+                    <button className="scoreBtn" onClick={() => incrementScore(selectedCourtId, 'team1')}>+</button>
+                  </div>
+                </div>
+                <div className="scoreDivider">:</div>
+                <div className="scoreTeam">
+                  <div className="teamLabel">ทีม 2</div>
+                  <div className="scoreControls">
+                    <button className="scoreBtn" onClick={() => decrementScore(selectedCourtId, 'team2')}>−</button>
+                    <div className="scoreDisplay">
+                      {currentCourt.score.team2}
+                    </div>
+                    <button className="scoreBtn" onClick={() => incrementScore(selectedCourtId, 'team2')}>+</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Score Reset Control */}
+              <div className="gameControls">
+                <button className="resetScoreBtn" onClick={resetScore} style={{ width: '100%' }}>
+                  ↺ รีเซ็ตคะแนน
+                </button>
+              </div>
+
+              {/* Badminton Court Visualization */}
+              <div className="badmintonCourt">
+                {/* Team 1 Side (Top) */}
+                <div className="courtSide team1Side">
+                  <div className="courtSideLabel">ทีม 1</div>
+                  <div className="playerPositions">
+                    {[0, 1].map((idx) => (
+                      <div key={idx} className="playerSlot">
+                        {team1Players[idx] ? (
+                          <div className="playerCard">
+                            <button 
+                              className="removePlayerBtnSmall"
+                              onClick={() => removePlayerFromCourt(team1Players[idx].id)}
+                            >
+                              ×
+                            </button>
+                            <div className="playerIcon">👤</div>
+                            <div className="playerLabel">{team1Players[idx].name}</div>
+                          </div>
+                        ) : (
+                          <div className="emptySlot">
+                            <div className="emptyIcon">+</div>
+                            <div className="emptyLabel">ว่าง</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Net */}
+                <div className="courtNet">
+                  <div className="netLine"></div>
+                  <div className="netLabel">NET</div>
+                </div>
+
+                {/* Team 2 Side (Bottom) */}
+                <div className="courtSide team2Side">
+                  <div className="courtSideLabel">ทีม 2</div>
+                  <div className="playerPositions">
+                    {[0, 1].map((idx) => (
+                      <div key={idx} className="playerSlot">
+                        {team2Players[idx] ? (
+                          <div className="playerCard">
+                            <button 
+                              className="removePlayerBtnSmall"
+                              onClick={() => removePlayerFromCourt(team2Players[idx].id)}
+                            >
+                              ×
+                            </button>
+                            <div className="playerIcon">👤</div>
+                            <div className="playerLabel">{team2Players[idx].name}</div>
+                          </div>
+                        ) : (
+                          <div className="emptySlot">
+                            <div className="emptyIcon">+</div>
+                            <div className="emptyLabel">ว่าง</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Available Players Section */}
+              {availablePlayers.length > 0 && (
+                <div className="availableSection">
+                  <h4 className="availableTitle">ผู้เล่นที่พร้อม ({availablePlayers.length})</h4>
+                  <div className="availablePlayersList">
+                    {availablePlayers.map((p) => (
+                      <div key={p.id} className="availablePlayerItem">
+                        <div className="availablePlayerInfo">
+                          <span className="availablePlayerName">{p.name}</span>
+                          <span className="availablePlayerCount">{p.playCount} เกม</span>
+                        </div>
+                        <button 
+                          className="addPlayerBtn"
+                          onClick={() => addPlayerToCourt(p.id)}
+                          disabled={courtPlayers.length >= 4}
+                        >
+                          <span className="addPlayerText">+</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button 
+                className="modalBtn modalBtnSave"
+                onClick={closeCourtModal}
+                style={{ width: '100%', marginTop: '15px' }}
+              >
+                <span className="modalBtnTextSave">✓ เสร็จสิ้น</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
