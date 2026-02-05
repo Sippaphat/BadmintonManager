@@ -235,7 +235,7 @@ const TRANSLATIONS = {
   },
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 // --- ELO / WEIGHT LOGIC ---
 function normBase(base, min = 0, max = 100) {
