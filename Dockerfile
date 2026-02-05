@@ -15,11 +15,19 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Install server dependencies
+WORKDIR /app/server
+COPY server/package.json server/pnpm-lock.yaml* ./
+RUN npm install
+
 # Install serve to host static files
 RUN npm install -g serve
 
-# Expose port 8000
-EXPOSE 8000
+# Go back to app root
+WORKDIR /app
 
-# Serve the built application on port 8000
-CMD ["serve", "-s", "dist", "-l", "8000"]
+# Expose server port and web port
+EXPOSE 5000 9009
+
+# Start server in background and serve the built application
+CMD sh -c "cd /app/server && node index.js & cd /app && serve -s dist -l 9009"
