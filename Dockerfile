@@ -3,6 +3,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install pnpm
+RUN npm install -g pnpm
+
 # Copy package files first to leverage cache
 COPY package.json package-lock.json* ./
 
@@ -15,16 +18,11 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Install server dependencies
-WORKDIR /app/server
-COPY server/package.json server/pnpm-lock.yaml* ./
-RUN npm install
+# Install server dependencies with pnpm
+RUN cd server && CI=true pnpm install
 
 # Install serve to host static files
 RUN npm install -g serve
-
-# Go back to app root
-WORKDIR /app
 
 # Expose server port and web port
 EXPOSE 5000 9009
