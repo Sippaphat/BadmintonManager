@@ -5,12 +5,17 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 5000;
+const CLIENT_ID = "634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com"; // Replace with real Client ID
+const client = new OAuth2Client(CLIENT_ID);
+const JWT_SECRET = "123456789"; // Replace with environment variable for production
 
 // Middleware
 app.use(cors());
@@ -32,6 +37,14 @@ mongoose.connect("mongodb+srv://pluemp_db_user:haKuhAcSWdNMxLgX@buddi.gunuse4.mo
 .catch(err => console.error('MongoDB Connection Error:', err));
 
 // Schemas
+const UserSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    name: String,
+    picture: String,
+    googleId: String,
+    createdAt: { type: Date, default: Date.now }
+});
+
 const PlayerSchema = new mongoose.Schema({
   name: String,
   photo: String, // URL/Path to photo
@@ -45,11 +58,24 @@ const PlayerSchema = new mongoose.Schema({
 
 const GroupSchema = new mongoose.Schema({
   name: String,
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Users who can access this group
   players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }]
 });
 
+const ScheduleSchema = new mongoose.Schema({
+  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
+  title: String,
+  start: Date,
+  end: Date,
+  location: String,
+  description: String
+});
+
+const User = mongoose.model('User', UserSchema);
 const Player = mongoose.model('Player', PlayerSchema);
 const Group = mongoose.model('Group', GroupSchema);
+const Schedule = mongoose.model('Schedule', ScheduleSchema);
 
 // Multer Config for Image Upload
 const storage = multer.diskStorage({
@@ -65,20 +91,98 @@ const upload = multer({ storage });
 
 // Routes
 
+// --- Auth ---
+app.post('/auth/google', async (req, res) => {
+    const { token } = req.body;
+    try {
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        
+        // Find or create user
+        let user = await User.findOne({ email: payload.email });
+        if (!user) {
+            user = new User({
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture,
+                googleId: payload.sub
+            });
+            await user.save();
+        }
+
+        // Generate JWT
+        const sessionToken = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+        res.json({ user, token: sessionToken });
+    } catch (error) {
+        console.error('Auth Error:', error);
+        res.status(401).json({ error: 'Authentication failed' });
+    }
+});
+
 // --- Groups ---
 app.get('/groups', async (req, res) => {
   try {
-    const groups = await Group.find();
+    const { userId } = req.query;
+    if (!userId) {
+        // Fallback for non-authenticated requests (if any)
+        const groups = await Group.find();
+        return res.json(groups);
+    }
+
+    // Find groups where user is owner OR is in sharedWith
+    const groups = await Group.find({
+        $or: [
+            { owner: userId },
+            { sharedWith: userId }
+        ]
+    }).populate('owner', 'name email picture'); // Optional: show owner info
+    
     res.json(groups);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+app.post('/groups/:groupId/share', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const { groupId } = req.params;
+
+        const userToShare = await User.findOne({ email });
+        if (!userToShare) {
+            return res.status(404).json({ error: 'User not found. They must sign in to the app first.' });
+        }
+
+        const group = await Group.findById(groupId);
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        // Check if already shared
+        if (group.sharedWith.includes(userToShare._id)) {
+            return res.status(400).json({ error: 'User already has access' });
+        }
+        
+        // Check if owner
+        if (group.owner && group.owner.toString() === userToShare._id.toString()) {
+             return res.status(400).json({ error: 'User is the owner' });
+        }
+
+        group.sharedWith.push(userToShare._id);
+        await group.save();
+
+        res.json({ message: 'Shared successfully', user: userToShare });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/groups', async (req, res) => {
   try {
-    const { name } = req.body;
-    const newGroup = new Group({ name });
+    const { name, userId } = req.body; // userId passed from frontend
+    const newGroup = new Group({ name, owner: userId });
     await newGroup.save();
     res.json(newGroup);
   } catch (err) {
@@ -189,6 +293,40 @@ app.put('/players/:id/stats', async (req, res) => {
         
         const updatedPlayer = await Player.findByIdAndUpdate(req.params.id, updateData, { new: true });
         res.json(updatedPlayer);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Schedules ---
+app.get('/schedules', async (req, res) => {
+    try {
+        const { groupId } = req.query;
+        const filter = groupId ? { groupId } : {};
+        const schedules = await Schedule.find(filter).sort({ start: 1 });
+        res.json(schedules);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/schedules', async (req, res) => {
+    try {
+        const { groupId, title, start, end, location, description } = req.body;
+        const newSchedule = new Schedule({
+            groupId, title, start, end, location, description
+        });
+        await newSchedule.save();
+        res.json(newSchedule);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/schedules/:id', async (req, res) => {
+    try {
+        await Schedule.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

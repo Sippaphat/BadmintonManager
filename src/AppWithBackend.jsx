@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleLogin, googleLogout } from '@react-oauth/google';
 import './App.css';
 
 // --- CONFIG & THEME ---
@@ -108,7 +109,27 @@ const TRANSLATIONS = {
     scoreDisplay: 'คะแนน:',
     noScore: 'ไม่ได้บันทึกคะแนน',
     currency: 'บาท',
-    cancelAction: 'ยกเลิก' 
+    cancelAction: 'ยกเลิก',
+    calendar: '📅 ปฏิทิน',
+    addEvent: 'เพิ่มกิจกรรม',
+    eventTitle: 'หัวข้อ',
+    eventLocation: 'สถานที่',
+    eventDesc: 'รายละเอียด',
+    eventStart: 'เริ่ม (เวลา)',
+    eventEnd: 'สิ้นสุด (เวลา)',
+    addToCalendar: 'เพิ่มลงปฏิทินเครื่อง',
+    googleCal: 'Google Calendar',
+    outlookCal: 'Outlook',
+    icsFile: 'ไฟล์ .ics (Apple/อื่น)',
+    noEvents: 'ไม่มีกิจกรรมในวันนี้',
+    confirmDeleteEvent: 'ลบกิจกรรมนี้?',
+    shareGroup: '🔗 แชร์กลุ่ม',
+    shareGroupDesc: 'ใส่ Email ของเพื่อนที่เคยใช้งานแอพนี้',
+    share: 'แชร์',
+    shareSuccess: 'แชร์กลุ่มสำเร็จ!',
+    userNotFound: 'ไม่พบผู้ใช้ หรือผู้ใช้นี้เข้าถึงอยู่แล้ว',
+    groupOwner: 'เจ้าของกลุ่ม:',
+    sharedWith: 'แชร์กับ:'
   },
   en: {
     appTitle: 'Badminton Manager',
@@ -190,8 +211,28 @@ const TRANSLATIONS = {
     scoreDisplay: 'Score:',
     noScore: 'No Score Recorded',
     currency: 'Baht',
-    cancelAction: 'Cancel'
-  }
+    cancelAction: 'Cancel',
+    calendar: '📅 Calendar',
+    addEvent: 'Add Event',
+    eventTitle: 'Title',
+    eventLocation: 'Location',
+    eventDesc: 'Description',
+    eventStart: 'Start (Time)',
+    eventEnd: 'End (Time)',
+    addToCalendar: 'Add to System Calendar',
+    googleCal: 'Google Calendar',
+    outlookCal: 'Outlook',
+    icsFile: '.ics File (Apple/Other)',
+    noEvents: 'No events this day',
+    confirmDeleteEvent: 'Delete this event?',
+    shareGroup: '🔗 Share Group',
+    shareGroupDesc: 'Enter email of a user who has used this app',
+    share: 'Share',
+    shareSuccess: 'Group shared successfully!',
+    userNotFound: 'User not found or already access.',
+    groupOwner: 'Owner:',
+    sharedWith: 'Shared with:'
+  },
 };
 
 const API_BASE = 'http://localhost:5000';
@@ -274,15 +315,49 @@ export default function AppWithBackend() {
   const [theme, setTheme] = useState('light');
   const [language, setLanguage] = useState('th');
   const [gameMode, setGameMode] = useState('doubles'); // 'doubles' | 'singles'
+  const [user, setUser] = useState(null); // Auth State
 
   const COLORS = THEMES[theme];
   const t = (key) => TRANSLATIONS[language][key] || key;
+  
+  // Handle Login
+  const handleLoginSuccess = async (credentialResponse) => {
+    try {
+        const res = await fetch(`${API_BASE}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: credentialResponse.credential }),
+        });
+        const data = await res.json();
+        if (data.user && data.token) {
+            setUser(data.user);
+            localStorage.setItem('bm_user', JSON.stringify(data.user));
+            localStorage.setItem('bm_token', data.token);
+        }
+    } catch (err) {
+        console.error('Login Failed', err);
+    }
+  };
+
+  const handleLogout = () => {
+      googleLogout();
+      setUser(null);
+      localStorage.removeItem('bm_user');
+      localStorage.removeItem('bm_token');
+      setSelectedGroup(null);
+  };
 
   useEffect(() => {
     const root = document.documentElement;
     Object.keys(COLORS).forEach(key => {
       root.style.setProperty(`--${key}`, COLORS[key]);
     });
+    
+    // Check for existing session
+    const storedUser = localStorage.getItem('bm_user');
+    if (storedUser) {
+        setUser(JSON.parse(storedUser));
+    }
   }, [theme]);
 
   // --- STATE: GROUPS ---
@@ -293,6 +368,20 @@ export default function AppWithBackend() {
 
   // --- STATE: APP ---
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false); // Toggle Calendar View
+  const [schedules, setSchedules] = useState([]);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDateEvents, setSelectedDateEvents] = useState([]);
+  const [isEventModalVisible, setEventModalVisible] = useState(false);
+  
+  // Event Form State
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventLocation, setNewEventLocation] = useState('');
+  const [newEventDesc, setNewEventDesc] = useState('');
+  const [newEventDate, setNewEventDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newEventStartTime, setNewEventStartTime] = useState('18:00');
+  const [newEventEndTime, setNewEventEndTime] = useState('20:00');
+
   const [playerInput, setPlayerInput] = useState('');
   const [playerBaseSkill, setPlayerBaseSkill] = useState(50); // New state for Base Skill
   const [playerPhoto, setPlayerPhoto] = useState(null);
@@ -304,6 +393,10 @@ export default function AppWithBackend() {
 
   // --- STATE: EDIT MODAL ---
   const [isEditModalVisible, setEditModalVisible] = useState(false);
+
+  // --- STATE: SHARE MODAL ---
+  const [isShareModalVisible, setShareModalVisible] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [tempName, setTempName] = useState('');
   const [tempBaseSkill, setTempBaseSkill] = useState(50);
@@ -328,13 +421,16 @@ export default function AppWithBackend() {
 
   // --- EFFECTS ---
   useEffect(() => {
-    fetchGroups();
-  }, []);
+    if (user) {
+        fetchGroups();
+    }
+  }, [user]);
 
   const fetchGroups = async () => {
+    if (!user) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/groups`);
+      const res = await fetch(`${API_BASE}/groups?userId=${user._id}`);
       if (res.ok) {
         const data = await res.json();
         setGroups(data);
@@ -346,13 +442,34 @@ export default function AppWithBackend() {
     }
   };
 
+  const handleShareGroup = async () => {
+      if (!shareEmail.trim()) return;
+      try {
+          const res = await fetch(`${API_BASE}/groups/${selectedGroup._id}/share`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: shareEmail })
+          });
+          const data = await res.json();
+          if (res.ok) {
+              alert(t('shareSuccess'));
+              setShareEmail('');
+              setShareModalVisible(false);
+          } else {
+              alert(data.error || t('userNotFound'));
+          }
+      } catch (err) {
+          alert('Error sharing group');
+      }
+  };
+
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
     try {
       const res = await fetch(`${API_BASE}/groups`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGroupName }),
+        body: JSON.stringify({ name: newGroupName, userId: user._id }),
       });
       if (res.ok) {
         const group = await res.json();
@@ -384,6 +501,7 @@ export default function AppWithBackend() {
         }));
         setPlayers(loadedPlayers);
         setSelectedGroup(data);
+        fetchSchedules(data._id);
       }
     } catch (error) {
       alert(t('errorLoadGroup'));
@@ -585,6 +703,112 @@ export default function AppWithBackend() {
           setPlayers(players.map(p => ({ ...p, winCount: 0 })));
       }
   }
+
+  // --- ACTIONS: SCHEDULES & CALENDAR ---
+  const fetchSchedules = async (groupId) => {
+      try {
+          const query = groupId ? `?groupId=${groupId}` : '';
+          const res = await fetch(`${API_BASE}/schedules${query}`);
+          if (res.ok) {
+              const data = await res.json();
+              setSchedules(data);
+          }
+      } catch (err) {
+          console.error("Fetch schedules error", err);
+      }
+  };
+
+  const handleAddSchedule = async () => {
+    if (!selectedGroup) return;
+    const startDateTime = new Date(`${newEventDate}T${newEventStartTime}`);
+    const endDateTime = new Date(`${newEventDate}T${newEventEndTime}`);
+
+    try {
+        const res = await fetch(`${API_BASE}/schedules`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                groupId: selectedGroup._id,
+                title: newEventTitle,
+                start: startDateTime,
+                end: endDateTime,
+                location: newEventLocation,
+                description: newEventDesc
+            })
+        });
+        if (res.ok) {
+            const newItem = await res.json();
+            setSchedules([...schedules, newItem]);
+            setEventModalVisible(false);
+            // Reset form
+            setNewEventTitle('');
+            setNewEventLocation('');
+            setNewEventDesc('');
+        }
+    } catch (err) {
+        console.error(err);
+    }
+  };
+
+  const handleDeleteSchedule = async (id) => {
+      if(!window.confirm(t('confirmDeleteEvent'))) return;
+      try {
+          const res = await fetch(`${API_BASE}/schedules/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+              setSchedules(schedules.filter(s => s._id !== id));
+          }
+      } catch (err) {
+          console.error(err);
+      }
+  };
+
+  // Calendar Integration Helpers
+  const generateGoogleCalendarLink = (event) => {
+      const start = new Date(event.start).toISOString().replace(/-|:|\.\d\d\d/g, "");
+      const end = new Date(event.end).toISOString().replace(/-|:|\.\d\d\d/g, "");
+      const details = encodeURIComponent(event.description || "");
+      const location = encodeURIComponent(event.location || "");
+      const title = encodeURIComponent(event.title);
+      return `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+  };
+  
+  const generateOutlookCalendarLink = (event) => {
+    const start = new Date(event.start).toISOString();
+    const end = new Date(event.end).toISOString();
+    const title = encodeURIComponent(event.title);
+    const details = encodeURIComponent(event.description || "");
+    const location = encodeURIComponent(event.location || "");
+    return `https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&startdt=${start}&enddt=${end}&subject=${title}&body=${details}&location=${location}`;
+  };
+
+  const downloadICSFile = (event) => {
+    const start = new Date(event.start).toISOString().replace(/-|:|\.\d\d\d/g, "");
+    const end = new Date(event.end).toISOString().replace(/-|:|\.\d\d\d/g, "");
+    const now = new Date().toISOString().replace(/-|:|\.\d\d\d/g, "");
+    
+    const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//BadmintonManager//EN
+BEGIN:VEVENT
+UID:${event._id}@badmintonmanager.com
+DTSTAMP:${now}
+DTSTART:${start}
+DTEND:${end}
+SUMMARY:${event.title}
+DESCRIPTION:${event.description || ""}
+LOCATION:${event.location || ""}
+END:VEVENT
+END:VCALENDAR`;
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${event.title}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // --- ACTIONS: GAMEPLAY ---
   const assignMatchToCourt = (courtId) => {
@@ -914,18 +1138,137 @@ export default function AppWithBackend() {
   };
 
   // --- RENDER HELPERS ---
+  const renderCalendar = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthName = new Intl.DateTimeFormat(language === 'th' ? 'th-TH' : 'en-US', { month: 'long', year: 'numeric' }).format(currentDate);
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const days = [];
+    for (let i = 0; i < firstDay; i++) {
+        days.push(<div key={`empty-${i}`} style={{ height: 80, backgroundColor: '#f9f9f9', border: '1px solid #eee' }}></div>);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateObj = new Date(year, month, d);
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(dateObj.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${dayStr}`;
+
+        const daysEvents = schedules.filter(s => {
+             const sDate = s.start ? new Date(s.start).toISOString().slice(0, 10) : '';
+             return sDate === dateStr;
+        });
+
+        days.push(
+            <div 
+                key={d} 
+                onClick={() => {
+                    if (selectedGroup) {
+                        setNewEventDate(dateStr);
+                        setEventModalVisible(true);
+                    }
+                }}
+                style={{ height: 80, border: '1px solid #eee', padding: 4, cursor: selectedGroup ? 'pointer' : 'default', backgroundColor: 'white', overflow: 'hidden', position: 'relative' }}
+            >
+                <div style={{ fontWeight: 'bold', fontSize: 12, marginBottom: 2, color: '#333' }}>{d}</div>
+                {daysEvents.map((ev, idx) => (
+                    <div key={idx} style={{ fontSize: 9, backgroundColor: COLORS.lightGreen, color: COLORS.primary, padding: '1px 2px', borderRadius: 2, marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {ev.title}
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="container" style={{ minHeight: '100vh', paddingBottom: 80 }}>
+            <div className="courtHeader">
+                <button onClick={() => setShowCalendar(false)} className="resetBtn">{t('cancelAction')}</button>
+                <h2 style={{ fontSize: 18, margin: 0, color: COLORS.primary }}>{t('calendar')}</h2>
+                <div style={{ width: 50 }}></div> 
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, backgroundColor: COLORS.card, padding: 10, borderRadius: 12, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.text }}>◀</button>
+                <span style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.text }}>{monthName}</span>
+                <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.text }}>▶</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, backgroundColor: '#ddd', border: '1px solid #ddd' }}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} style={{ textAlign: 'center', fontSize: 12, fontWeight: 'bold', padding: 5, backgroundColor: '#f0f0f0', color: '#555' }}>{day}</div>
+                ))}
+                {days}
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                     <h3 style={{ fontSize: 16, margin: 0, color: COLORS.text }}>{t('calendar')} List</h3>
+                     {selectedGroup && (
+                        <button onClick={() => setEventModalVisible(true)} className="addBtn" style={{ padding: '8px 12px', fontSize: 14 }}>{t('addEvent')}</button>
+                     )}
+                </div>
+                
+                {schedules.map(ev => {
+                    const evDate = new Date(ev.start);
+                    // Show all events or just for this month? showing this month logic
+                   if (evDate.getMonth() !== month || evDate.getFullYear() !== year) return null;
+
+                    return (
+                        <div key={ev._id} style={{ backgroundColor: COLORS.card, padding: 10, borderRadius: 8, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 5, boxShadow: '0 2px 4px rgba(0,0,0,0.05)', borderLeft: `4px solid ${COLORS.primary}` }}>
+                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                 <span style={{ fontWeight: 'bold', color: COLORS.primary, fontSize: 16 }}>{ev.title}</span>
+                                 <button onClick={() => handleDeleteSchedule(ev._id)} style={{ border: 'none', background: 'none', color: COLORS.red, cursor: 'pointer' }}>✕</button>
+                             </div>
+                             <div style={{ fontSize: 14, color: COLORS.text }}>📅 {evDate.toLocaleDateString()} • {evDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(ev.end).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                             {ev.location && <div style={{ fontSize: 14, color: COLORS.gray }}>📍 {ev.location}</div>}
+                             {ev.description && <div style={{ fontSize: 12, color: COLORS.gray, fontStyle: 'italic' }}>"{ev.description}"</div>}
+                             
+                             <div style={{ display: 'flex', gap: 10, marginTop: 8, borderTop: '1px solid #eee', paddingTop: 8 }}>
+                                 <span style={{ fontSize: 12, color: '#888', alignSelf: 'center' }}>Add to:</span>
+                                 <a href={generateGoogleCalendarLink(ev)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: COLORS.blue, textDecoration: 'none', fontWeight: 'bold' }}>Google</a>
+                                 <a href={generateOutlookCalendarLink(ev)} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: COLORS.blue, textDecoration: 'none', fontWeight: 'bold' }}>Outlook</a>
+                                 <span onClick={() => downloadICSFile(ev)} style={{ fontSize: 12, color: COLORS.blue, textDecoration: 'none', cursor: 'pointer', fontWeight: 'bold' }}>ICS (Apple)</span>
+                             </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+  };
+
   const renderGroupSelection = () => (
       <div className="container" style={{ alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
           <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 10 }}>
+            <button 
+                onClick={() => {
+                    fetchSchedules(); // Fetch all schedules
+                    setShowCalendar(true);
+                }}
+                style={{ padding: '8px', borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: COLORS.blue, color: 'white' }}
+            >
+                📅
+            </button>
             <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} style={{ padding: '8px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text }}>
                 {theme === 'light' ? '🌙' : '☀️'}
             </button>
             <button onClick={() => setLanguage(language === 'th' ? 'en' : 'th')} style={{ padding: '8px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text }}>
                 {language === 'th' ? 'EN' : 'TH'}
             </button>
+            <button onClick={handleLogout} style={{ padding: '8px', borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: COLORS.red, color: 'white', fontWeight: 'bold' }}>
+                Logout
+            </button>
           </div>
 
           <div className="header">
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                {user.picture && <img src={user.picture} alt="" style={{ width: 40, height: 40, borderRadius: 20 }} />}
+                <span style={{ fontSize: 14, color: COLORS.text }}>{user.name}</span>
+            </div>
             <h1 className="headerText">🏸 {t('appTitle')}</h1>
             <div className="subHeader">{t('selectGroup')}</div>
           </div>
@@ -973,11 +1316,19 @@ export default function AppWithBackend() {
 
       <div className="section">
          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-            <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text }}>
-                {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+            <div>
+                <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text, marginRight: 8 }}>
+                    {theme === 'light' ? '🌙' : '☀️'}
+                </button>
+                <button onClick={() => setLanguage(language === 'th' ? 'en' : 'th')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text }}>
+                    {language === 'th' ? 'EN' : 'TH'}
+                </button>
+            </div>
+            <button onClick={() => setShowCalendar(true)} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: COLORS.blue, color: 'white', fontWeight: 'bold' }}>
+                {t('calendar')} 📅
             </button>
-            <button onClick={() => setLanguage(language === 'th' ? 'en' : 'th')} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #ddd', cursor: 'pointer', backgroundColor: COLORS.bg, color: COLORS.text }}>
-                {language === 'th' ? '🇺🇸 EN' : '🇹🇭 TH'}
+            <button onClick={() => setShareModalVisible(true)} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: COLORS.accent, color: 'white', marginLeft: 8, fontWeight: 'bold' }}>
+                {t('share')} 🔗
             </button>
         </div>
 
@@ -1392,11 +1743,79 @@ export default function AppWithBackend() {
     );
   };
 
+  if (showCalendar) return (
+     <div className="app-root">
+         {renderCalendar()}
+        {isEventModalVisible && (
+            <div className="modalOverlay">
+            <div className="modalView">
+                <h3 className="modalTitle">{t('addEvent')}</h3>
+                <input className="modalInput" placeholder={t('eventTitle')} value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} />
+                <input className="modalInput" type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} />
+                <div style={{display: 'flex', gap: 10, width: '100%', marginBottom: 20}}>
+                    <input className="modalInput" type="time" value={newEventStartTime} onChange={e => setNewEventStartTime(e.target.value)} style={{marginBottom: 0}} />
+                    <input className="modalInput" type="time" value={newEventEndTime} onChange={e => setNewEventEndTime(e.target.value)} style={{marginBottom: 0}} />
+                </div>
+                <input className="modalInput" placeholder={t('eventLocation')} value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)} />
+                <textarea className="modalInput" placeholder={t('eventDesc')} value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} rows={3} style={{height: 'auto'}} />
+                
+                <div className="modalActions">
+                <button className="modalBtn modalBtnCancel" onClick={() => setEventModalVisible(false)}>
+                    <span className="modalBtnTextCancel">{t('cancelAction')}</span>
+                </button>
+                <button className="modalBtn modalBtnSave" onClick={handleAddSchedule}>
+                    <span className="modalBtnTextSave">{t('save')}</span>
+                </button>
+                </div>
+            </div>
+            </div>
+        )}
+     </div>
+  );
+
+  if (!user) {
+    return (
+        <div className="app-root" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+            <h1 style={{ color: COLORS.primary }}>Badminton Manager</h1>
+            <div style={{ marginTop: 20 }}>
+                <GoogleLogin
+                onSuccess={handleLoginSuccess}
+                onError={() => console.log('Login Failed')}
+                />
+            </div>
+        </div>
+    );
+  }
+
   if (!selectedGroup) return renderGroupSelection();
 
   return (
     <div className="app-root">
       {isGameStarted ? renderGame() : renderSetup()}
+
+      {/* --- SHARE MODAL --- */}
+      {isShareModalVisible && (
+        <div className="modalOverlay">
+          <div className="modalView">
+             <h3 className="modalTitle">{t('shareGroup')}</h3>
+             <p style={{ fontSize: 13, color: COLORS.gray, marginBottom: 15 }}>{t('shareGroupDesc')}</p>
+             <input 
+                 className="modalInput" 
+                 placeholder="Example@gmail.com" 
+                 value={shareEmail}
+                 onChange={(e) => setShareEmail(e.target.value)}
+             />
+             <div className="modalActions">
+                 <button className="modalBtn modalBtnCancel" onClick={() => setShareModalVisible(false)}>
+                     <span className="modalBtnTextCancel">{t('cancel')}</span>
+                 </button>
+                 <button className="modalBtn modalBtnSave" onClick={handleShareGroup}>
+                     <span className="modalBtnTextSave">{t('share')}</span>
+                 </button>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* --- EDIT MODAL --- */}
       {isEditModalVisible && (
