@@ -22,14 +22,11 @@ ENV VITE_API_BASE=$VITE_API_BASE
 # Build the application
 RUN npm run build
 
-# Install server dependencies with pnpm
-RUN cd server && CI=true pnpm install
-
 # Install serve to host static files
 RUN npm install -g serve
 
 # Expose server port and web port
-EXPOSE 5000 9009
+EXPOSE 9009
 
 # Start server in background and serve the built application
 CMD sh -c "cd /app/server && node index.js & cd /app && serve -s dist -l 9009"

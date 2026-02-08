@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # ----------------------------
+  # 1. Backend Service (Node API)
+  # ----------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: badminton-api
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      # Replace this with your real MongoDB Atlas connection string
+      - MONGO_URI=mongodb+srv://pluemp_db_user:haKuhAcSWdNMxLgX@buddi.gunuse4.mongodb.net/
+      # Change this to a secure random string for production
+      - JWT_SECRET=change_this_to_something_secure
+      - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
+    volumes:
+      # CRITICAL: This saves uploaded photos on your server disk
+      - ./uploads:/app/server/uploads
+    restart: always
+
+  # ----------------------------
+  # 2. Frontend Service (React)
+  # ----------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: https://badminton.xenocer.com/
+    container_name: badminton-web
+    ports:
+      - "80:80"  # Expose on standard web port
+    restart: always
+    depends_on:
+      - backend
