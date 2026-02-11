@@ -12,10 +12,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 5000;
-const CLIENT_ID = "634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com"; // Replace with real Client ID
+const PORT = process.env.PORT || 5000;
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com"; 
 const client = new OAuth2Client(CLIENT_ID);
-const JWT_SECRET = "123456789"; // Replace with environment variable for production
+const JWT_SECRET = process.env.JWT_SECRET || "123456789"; 
+const API_BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}`;
 
 // Middleware
 app.use(cors());
@@ -29,7 +30,8 @@ if (!fs.existsSync(uploadDir)){
 }
 
 // MongoDB Connection
-mongoose.connect("mongodb+srv://pluemp_db_user:haKuhAcSWdNMxLgX@buddi.gunuse4.mongodb.net/", {
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://pluemp_db_user:haKuhAcSWdNMxLgX@buddi.gunuse4.mongodb.net/";
+mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
@@ -210,7 +212,7 @@ app.post('/groups/:groupId/players', upload.single('photo'), async (req, res) =>
     let photoPath = '';
 
     if (req.file) {
-      photoPath = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+      photoPath = `${API_BASE_URL}/uploads/${req.file.filename}`;
     }
 
     // Calculate initial Elo
@@ -262,7 +264,7 @@ app.put('/players/:id', upload.single('photo'), async (req, res) => {
              updateData.baseSkill = Number(baseSkill);
         }
         if (req.file) {
-            updateData.photo = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+            updateData.photo = `${API_BASE_URL}/uploads/${req.file.filename}`;
         }
         
         const updatedPlayer = await Player.findByIdAndUpdate(req.params.id, updateData, { new: true });

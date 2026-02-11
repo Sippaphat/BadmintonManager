@@ -235,7 +235,8 @@ const TRANSLATIONS = {
   },
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE;
+// Remove trailing slash if present
+const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 
 // --- ELO / WEIGHT LOGIC ---
 function normBase(base, min = 0, max = 100) {
