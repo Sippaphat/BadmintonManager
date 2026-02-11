@@ -1,16 +1,15 @@
-# Stage 1: Build the React Application
-FROM node:18-alpine as build
+FROM node:18-alpine
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and serve
+RUN npm install -g pnpm serve
 
 # Copy package files
-COPY package.json package-lock.json* pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN npm install
+RUN pnpm install
 
 # Copy source code
 COPY . .
@@ -20,19 +19,10 @@ ARG VITE_API_BASE=https://badminton.xenocer.com/
 ENV VITE_API_BASE=$VITE_API_BASE
 
 # Build the application
-RUN npm run build
+RUN pnpm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:alpine
+# Expose port 3000 for serve
+EXPOSE 3000
 
-# Copy built assets from builder stage
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy Nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port 80
-EXPOSE 80
-
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start serve
+CMD ["serve", "-s", "dist", "-l", "3000"]
