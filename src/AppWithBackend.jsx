@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
+import axios from "axios";
 import "./App.css";
 
 // --- CONFIG & THEME ---
@@ -332,12 +333,10 @@ export default function AppWithBackend() {
   // Handle Login
   const handleLoginSuccess = async (credentialResponse) => {
     try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: credentialResponse.credential }),
+      const res = await axios.post(`${API_BASE}/auth/google`, {
+        token: credentialResponse.credential 
       });
-      const data = await res.json();
+      const data = res.data;
       if (data.user && data.token) {
         setUser(data.user);
         localStorage.setItem("bm_user", JSON.stringify(data.user));
@@ -441,11 +440,8 @@ export default function AppWithBackend() {
     if (!user) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/groups?userId=${user._id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setGroups(data);
-      }
+      const res = await axios.get(`${API_BASE}/groups?userId=${user._id}`);
+      setGroups(res.data);
     } catch (error) {
       console.error("Error fetching groups:", error);
     } finally {
@@ -456,37 +452,24 @@ export default function AppWithBackend() {
   const handleShareGroup = async () => {
     if (!shareEmail.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/groups/${selectedGroup._id}/share`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: shareEmail }),
+      const res = await axios.post(`${API_BASE}/groups/${selectedGroup._id}/share`, {
+        email: shareEmail 
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert(t("shareSuccess"));
-        setShareEmail("");
-        setShareModalVisible(false);
-      } else {
-        alert(data.error || t("userNotFound"));
-      }
+      alert(t("shareSuccess"));
     } catch (err) {
-      alert("Error sharing group");
+      alert(t("userNotFound"));
     }
   };
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/groups`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newGroupName, userId: user._id }),
+      const res = await axios.post(`${API_BASE}/groups`, {
+        name: newGroupName, userId: user._id 
       });
-      if (res.ok) {
-        const group = await res.json();
-        setGroups([...groups, group]);
-        setNewGroupName("");
-      }
+      const group = res.data;
+      setGroups([...groups, group]);
+      setNewGroupName("");
     } catch (error) {
       alert(t("errorCreateGroup"));
     }
@@ -494,11 +477,10 @@ export default function AppWithBackend() {
 
   const handleSelectGroup = async (group) => {
     try {
-      const res = await fetch(`${API_BASE}/groups/${group._id}`);
-      if (res.ok) {
-        const data = await res.json();
-        // Transform backend players to frontend state
-        const loadedPlayers = data.players.map((p) => ({
+      const res = await axios.get(`${API_BASE}/groups/${group._id}`);
+      const data = res.data;
+      // Transform backend players to frontend state
+      const loadedPlayers = data.players.map((p) => ({
           id: p._id,
           name: p.name,
           photo: p.photo,
@@ -513,7 +495,6 @@ export default function AppWithBackend() {
         setPlayers(loadedPlayers);
         setSelectedGroup(data);
         fetchSchedules(data._id);
-      }
     } catch (error) {
       alert(t("errorLoadGroup"));
     }
@@ -532,35 +513,30 @@ export default function AppWithBackend() {
         formData.append("photo", playerPhoto);
       }
 
-      const res = await fetch(
+      const res = await axios.post(
         `${API_BASE}/groups/${selectedGroup._id}/players`,
-        {
-          method: "POST",
-          body: formData,
-        },
+        formData
       );
 
-      if (res.ok) {
-        const newP = await res.json();
-        const pObj = {
-          id: newP._id,
-          name: newP.name,
-          photo: newP.photo,
-          playCount: 0,
-          winCount: 0,
-          isPlaying: false,
-          isResting: false,
-          baseSkill: newP.baseSkill,
-          elo: newP.elo,
-          gamesPlayed: 0,
-        };
-        setPlayers([...players, pObj]);
-        setPlayerInput("");
-        setPlayerPhoto(null);
-        setPlayerBaseSkill(50); // Reset baseSkill
-        // Reset file input manually if possible, or just let state handle it
-        document.getElementById("photo-upload").value = "";
-      }
+      const newP = res.data;
+      const pObj = {
+        id: newP._id,
+        name: newP.name,
+        photo: newP.photo,
+        playCount: 0,
+        winCount: 0,
+        isPlaying: false,
+        isResting: false,
+        baseSkill: newP.baseSkill,
+        elo: newP.elo,
+        gamesPlayed: 0,
+      };
+      setPlayers([...players, pObj]);
+      setPlayerInput("");
+      setPlayerPhoto(null);
+      setPlayerBaseSkill(50); // Reset baseSkill
+      // Reset file input manually if possible, or just let state handle it
+      document.getElementById("photo-upload").value = "";
     } catch (error) {
       console.error(error);
       alert(t("addFailed"));
@@ -570,12 +546,8 @@ export default function AppWithBackend() {
   const removePlayer = async (id) => {
     if (window.confirm(t("confirmDelete"))) {
       try {
-        const res = await fetch(`${API_BASE}/players/${id}`, {
-          method: "DELETE",
-        });
-        if (res.ok) {
-          setPlayers(players.filter((p) => p.id !== id));
-        }
+        await axios.delete(`${API_BASE}/players/${id}`);
+        setPlayers(players.filter((p) => p.id !== id));
       } catch (error) {
         alert(t("deleteFailed"));
       }
@@ -604,17 +576,13 @@ export default function AppWithBackend() {
         formData.append("photo", tempPhoto);
       }
 
-      const res = await fetch(`${API_BASE}/players/${editingPlayer.id}`, {
-        method: "PUT",
-        body: formData,
-      });
+      const res = await axios.put(`${API_BASE}/players/${editingPlayer.id}`, formData);
 
-      if (res.ok) {
-        const updatedP = await res.json();
-        const newPhotoUrl = updatedP.photo;
+      const updatedP = res.data;
+      const newPhotoUrl = updatedP.photo;
 
-        // Updated local state
-        const updatedPlayers = players.map((p) => {
+      // Updated local state
+      const updatedPlayers = players.map((p) => {
           if (p.id === editingPlayer.id) {
             return {
               ...p,
@@ -646,7 +614,6 @@ export default function AppWithBackend() {
         setCourts(updatedCourts);
         setEditModalVisible(false);
         setEditingPlayer(null);
-      }
     } catch (error) {
       alert(t("updateFailed"));
     }
@@ -688,7 +655,7 @@ export default function AppWithBackend() {
       // But stats should probably persist? I'll assume stats persist.
       // I will implement a loop to reset all for now.
       const promises = players.map((p) =>
-        fetch(`${API_BASE}/players/${p.id}/reset`, { method: "PUT" }),
+        axios.put(`${API_BASE}/players/${p.id}/reset`)
       );
       await Promise.all(promises);
 
@@ -707,11 +674,7 @@ export default function AppWithBackend() {
   const resetPlayCounts = async () => {
     if (window.confirm(t("confirmResetPlay"))) {
       const promises = players.map((p) =>
-        fetch(`${API_BASE}/players/${p.id}/stats`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playCount: 0 }),
-        }),
+        axios.put(`${API_BASE}/players/${p.id}/stats`, { playCount: 0 })
       );
       await Promise.all(promises);
 
@@ -722,11 +685,7 @@ export default function AppWithBackend() {
   const resetWinCounts = async () => {
     if (window.confirm(t("confirmResetWin"))) {
       const promises = players.map((p) =>
-        fetch(`${API_BASE}/players/${p.id}/stats`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ winCount: 0 }),
-        }),
+        axios.put(`${API_BASE}/players/${p.id}/stats`, { winCount: 0 })
       );
       await Promise.all(promises);
 
@@ -738,11 +697,8 @@ export default function AppWithBackend() {
   const fetchSchedules = async (groupId) => {
     try {
       const query = groupId ? `?groupId=${groupId}` : "";
-      const res = await fetch(`${API_BASE}/schedules${query}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSchedules(data);
-      }
+      const res = await axios.get(`${API_BASE}/schedules${query}`);
+      setSchedules(res.data);
     } catch (err) {
       console.error("Fetch schedules error", err);
     }
@@ -754,27 +710,21 @@ export default function AppWithBackend() {
     const endDateTime = new Date(`${newEventDate}T${newEventEndTime}`);
 
     try {
-      const res = await fetch(`${API_BASE}/schedules`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          groupId: selectedGroup._id,
-          title: newEventTitle,
-          start: startDateTime,
-          end: endDateTime,
-          location: newEventLocation,
-          description: newEventDesc,
-        }),
+      const res = await axios.post(`${API_BASE}/schedules`, {
+        groupId: selectedGroup._id,
+        title: newEventTitle,
+        start: startDateTime,
+        end: endDateTime,
+        location: newEventLocation,
+        description: newEventDesc,
       });
-      if (res.ok) {
-        const newItem = await res.json();
-        setSchedules([...schedules, newItem]);
-        setEventModalVisible(false);
-        // Reset form
-        setNewEventTitle("");
-        setNewEventLocation("");
-        setNewEventDesc("");
-      }
+      const newItem = res.data;
+      setSchedules([...schedules, newItem]);
+      setEventModalVisible(false);
+      // Reset form
+      setNewEventTitle("");
+      setNewEventLocation("");
+      setNewEventDesc("");
     } catch (err) {
       console.error(err);
     }
@@ -783,12 +733,8 @@ export default function AppWithBackend() {
   const handleDeleteSchedule = async (id) => {
     if (!window.confirm(t("confirmDeleteEvent"))) return;
     try {
-      const res = await fetch(`${API_BASE}/schedules/${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setSchedules(schedules.filter((s) => s._id !== id));
-      }
+      await axios.delete(`${API_BASE}/schedules/${id}`);
+      setSchedules(schedules.filter((s) => s._id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -934,12 +880,8 @@ END:VCALENDAR`;
 
     // Sync play count
     finalSelection.forEach((p) => {
-      fetch(`${API_BASE}/players/${p.id}/stats`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          playCount: p.playCount + 1,
-        }),
+      axios.put(`${API_BASE}/players/${p.id}/stats`, {
+        playCount: p.playCount + 1,
       });
     });
 
@@ -1008,11 +950,7 @@ END:VCALENDAR`;
         }
 
         if (winnerTeam) {
-          fetch(`${API_BASE}/players/${p.id}/stats`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(statsBody),
-          });
+          axios.put(`${API_BASE}/players/${p.id}/stats`, statsBody);
         }
       }
       return newP;
@@ -1069,11 +1007,7 @@ END:VCALENDAR`;
     const updatedPlayers = players.map((p) => {
       if (p.id === playerId) {
         // Sync playCount
-        fetch(`${API_BASE}/players/${p.id}/stats`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playCount: p.playCount + 1 }),
-        });
+        axios.put(`${API_BASE}/players/${p.id}/stats`, { playCount: p.playCount + 1 });
         return { ...p, isPlaying: true, playCount: p.playCount + 1 };
       }
       return p;
