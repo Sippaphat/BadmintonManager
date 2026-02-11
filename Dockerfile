@@ -15,7 +15,7 @@ RUN pnpm install
 COPY . .
 
 # Build argument for API base URL
-ARG VITE_API_BASE=https://badminton.xenocer.com
+ARG VITE_API_BASE=https://badminton-api.xenocer.com
 ENV VITE_API_BASE=$VITE_API_BASE
 
 # Build argument for Google Client ID
