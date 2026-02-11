@@ -1,32 +1,38 @@
-# Node.js build and serve stage
-FROM node:18-alpine
+# Stage 1: Build the React Application
+FROM node:18-alpine as build
 
 WORKDIR /app
 
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package files first to leverage cache
-COPY package.json package-lock.json* ./
+# Copy package files
+COPY package.json package-lock.json* pnpm-lock.yaml* ./
 
 # Install dependencies
 RUN npm install
 
-# Copy the rest of the application code
+# Copy source code
 COPY . .
 
 # Build argument for API base URL
-ARG VITE_API_BASE=http://localhost:5000
+ARG VITE_API_BASE=https://badminton.xenocer.com/
 ENV VITE_API_BASE=$VITE_API_BASE
 
 # Build the application
 RUN npm run build
 
-# Install serve to host static files
-RUN npm install -g serve
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
 
-# Expose server port and web port
-EXPOSE 9009
+# Copy built assets from builder stage
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Start server in background and serve the built application
-CMD sh -c "cd /app/server && node index.js & cd /app && serve -s dist -l 9009"
+# Copy Nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
