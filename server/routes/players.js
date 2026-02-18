@@ -51,4 +51,10 @@ router.post(
 router.get('/:groupId/players/leaderboard', playerController.getLeaderboard);
 router.get('/:groupId/players/queue', playerController.getQueue);
 
+
+// Player binding
+router.post('/:groupId/players/:playerId/bind', playerController.bindPlayer);
+router.post('/:groupId/players/:playerId/bind-self', playerController.bindSelf);
+router.post('/:groupId/players/:playerId/unbind', playerController.unbindPlayer);
+
 export default router;

@@ -2,10 +2,11 @@ import React from 'react';
 import { getInitials } from '../../utils/helpers';
 import { calculateWinRate } from '../../utils/eloSystem';
 
-const PlayerCard = ({ 
-  player, 
-  onEdit, 
+const PlayerCard = ({
+  player,
+  onEdit,
   onDelete,
+  onBind,
   showStats = false,
   showActions = true,
   serving = false,
@@ -19,12 +20,12 @@ const PlayerCard = ({
     md: 'p-4',
     lg: 'p-6',
   };
-  
+
   const selectableClass = selectable ? 'border-2 border-dashed border-primary/50 hover:border-primary hover:shadow-player cursor-pointer hover:scale-105' : '';
   const servingClass = serving ? 'bg-gradient-to-br from-yellow-400 to-orange-400 shadow-serve animate-pulse-slow' : '';
-  
+
   return (
-    <div 
+    <div
       className={`
         relative
         bg-white dark:bg-dark-card
@@ -43,19 +44,19 @@ const PlayerCard = ({
           🏸
         </div>
       )}
-      
+
       {selectable && (
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 px-2 py-0.5 rounded-full text-xs font-bold text-primary whitespace-nowrap">
           Click to serve
         </div>
       )}
-      
+
       {/* Player Photo or Avatar */}
       <div className="flex flex-col items-center">
         {player.photo ? (
           <div className="w-full aspect-square rounded-lg overflow-hidden mb-2">
-            <img 
-              src={player.photo} 
+            <img
+              src={player.photo}
               alt={player.name}
               className="w-full h-full object-cover"
             />
@@ -65,12 +66,17 @@ const PlayerCard = ({
             {getInitials(player.name)}
           </div>
         )}
-        
+
         {/* Player Name */}
         <h4 className={`font-bold text-center ${serving ? 'text-gray-900' : 'text-gray-900 dark:text-white'} mb-1`}>
           {player.name}
+          {player.userId && (
+            <span className="ml-1 text-blue-500 text-xs align-top" title="Linked to account">
+              ✓
+            </span>
+          )}
         </h4>
-        
+
         {/* Stats */}
         {showStats && (
           <div className="w-full space-y-1 text-xs text-gray-600 dark:text-gray-400 mt-2">
@@ -93,7 +99,7 @@ const PlayerCard = ({
           </div>
         )}
       </div>
-      
+
       {/* Actions */}
       {showActions && (
         <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-2">
@@ -106,6 +112,17 @@ const PlayerCard = ({
               className="flex-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded text-sm font-semibold transition-colors"
             >
               Edit
+            </button>
+          )}
+          {onBind && !player.userId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onBind(player);
+              }}
+              className="flex-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 px-2 py-1 rounded text-sm font-semibold transition-colors"
+            >
+              Link
             </button>
           )}
           {onDelete && (

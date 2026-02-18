@@ -6,8 +6,10 @@ import PlayerCard from '../components/player/PlayerCard';
 import Modal from '../components/ui/Modal';
 import Badge from '../components/ui/Badge';
 import { DEFAULT_BASE_SKILL, DEFAULT_COURTS, DEFAULT_TARGET_SCORE } from '../constants/config';
+import { bindPlayer } from '../services/playerService';
+import { sendInvitation } from '../services/groupService';
 
-const SetupPage = ({ 
+const SetupPage = ({
   players,
   onAddPlayer,
   onEditPlayer,
@@ -20,32 +22,43 @@ const SetupPage = ({
   setGameMode,
   onStartGame,
   onBack,
-  t 
+  onBindPlayer,
+  onInviteMember,
+  t
 }) => {
   const [playerName, setPlayerName] = useState('');
   const [baseSkill, setBaseSkill] = useState(DEFAULT_BASE_SKILL);
   const [playerPhoto, setPlayerPhoto] = useState(null);
-  
+
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [tempName, setTempName] = useState('');
   const [tempSkill, setTempSkill] = useState(50);
   const [tempPhoto, setTempPhoto] = useState(null);
-  
+
+  // Binding State
+  const [isBindModalOpen, setBindModalOpen] = useState(false);
+  const [bindingPlayer, setBindingPlayer] = useState(null);
+  const [bindEmail, setBindEmail] = useState('');
+
+  // Invite State
+  const [isInviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+
   const handleAddPlayer = async () => {
     if (!playerName.trim()) return;
-    
+
     await onAddPlayer({
       name: playerName,
       baseSkill: baseSkill,
       photo: playerPhoto,
     });
-    
+
     setPlayerName('');
     setBaseSkill(DEFAULT_BASE_SKILL);
     setPlayerPhoto(null);
   };
-  
+
   const handleOpenEdit = (player) => {
     setEditingPlayer(player);
     setTempName(player.name);
@@ -53,20 +66,20 @@ const SetupPage = ({
     setTempPhoto(null);
     setEditModalOpen(true);
   };
-  
+
   const handleSaveEdit = async () => {
     if (!tempName.trim()) return;
-    
+
     await onEditPlayer(editingPlayer.id, {
       name: tempName,
       baseSkill: tempSkill,
       photo: tempPhoto,
     });
-    
+
     setEditModalOpen(false);
     setEditingPlayer(null);
   };
-  
+
   const handlePhotoChange = (e, isTempPhoto = false) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -77,9 +90,35 @@ const SetupPage = ({
       }
     }
   };
-  
+
+  const handleOpenBind = (player) => {
+    setBindingPlayer(player);
+    setBindEmail('');
+    setBindModalOpen(true);
+  };
+
+  const handleValuesBind = async () => {
+    if (!bindEmail.trim()) return;
+    await onBindPlayer(bindingPlayer.id, bindEmail);
+    setBindModalOpen(false);
+    setBindingPlayer(null);
+    setBindEmail('');
+  };
+
+  const handleOpenInvite = () => {
+    setInviteEmail('');
+    setInviteModalOpen(true);
+  };
+
+  const handleValuesInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    await onInviteMember(inviteEmail);
+    setInviteModalOpen(false);
+    setInviteEmail('');
+  };
+
   const canStart = players.length >= (gameMode === 'singles' ? 2 : 4);
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-accent/10 to-primary/5 p-4">
       <div className="max-w-6xl mx-auto py-8">
@@ -97,7 +136,7 @@ const SetupPage = ({
             </p>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Settings Panel */}
           <div className="lg:col-span-1 space-y-6">
@@ -112,11 +151,10 @@ const SetupPage = ({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setGameMode('doubles')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        gameMode === 'doubles'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-gray-200 hover:border-primary/50'
-                      }`}
+                      className={`p-3 rounded-lg border-2 transition-all ${gameMode === 'doubles'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-200 hover:border-primary/50'
+                        }`}
                     >
                       <div className="text-2xl mb-1">👥</div>
                       <div className="text-xs font-semibold">Doubles</div>
@@ -124,11 +162,10 @@ const SetupPage = ({
                     </button>
                     <button
                       onClick={() => setGameMode('singles')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        gameMode === 'singles'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-gray-200 hover:border-primary/50'
-                      }`}
+                      className={`p-3 rounded-lg border-2 transition-all ${gameMode === 'singles'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-gray-200 hover:border-primary/50'
+                        }`}
                     >
                       <div className="text-2xl mb-1">👤</div>
                       <div className="text-xs font-semibold">Singles</div>
@@ -136,7 +173,7 @@ const SetupPage = ({
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Number of Courts */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -147,18 +184,17 @@ const SetupPage = ({
                       <button
                         key={num}
                         onClick={() => setNumberOfCourts(num)}
-                        className={`flex-1 py-2 px-3 rounded-lg border-2 font-bold transition-all ${
-                          numberOfCourts === num
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-gray-200 hover:border-primary/50'
-                        }`}
+                        className={`flex-1 py-2 px-3 rounded-lg border-2 font-bold transition-all ${numberOfCourts === num
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-gray-200 hover:border-primary/50'
+                          }`}
                       >
                         {num}
                       </button>
                     ))}
                   </div>
                 </div>
-                
+
                 {/* Target Score */}
                 <Input
                   type="text"
@@ -169,12 +205,12 @@ const SetupPage = ({
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^0-9]/g, '')
                     setGameTarget(value === '' ? '' : parseInt(value, 10))
-                    }}
+                  }}
                   fullWidth
                 />
               </div>
             </Card>
-            
+
             {/* Add Player */}
             <Card title={t('add') + ' Player'}>
               <div className="space-y-3">
@@ -185,7 +221,7 @@ const SetupPage = ({
                   fullWidth
                   onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
                 />
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     {t('baseSkillLabel')}
@@ -208,7 +244,7 @@ const SetupPage = ({
                     <span>Expert (100)</span>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     {t('changePhoto')}
@@ -220,7 +256,7 @@ const SetupPage = ({
                     className="text-sm"
                   />
                 </div>
-                
+
                 <Button
                   onClick={handleAddPlayer}
                   disabled={!playerName.trim()}
@@ -230,7 +266,7 @@ const SetupPage = ({
                 </Button>
               </div>
             </Card>
-            
+
             {/* Start Game Button */}
             <Button
               onClick={onStartGame}
@@ -241,7 +277,7 @@ const SetupPage = ({
             >
               🚀 {t('startGame')}
             </Button>
-            
+
             {!canStart && (
               <p className="text-sm text-center text-red-600">
                 {t('notEnoughPlayers')}
@@ -250,7 +286,7 @@ const SetupPage = ({
               </p>
             )}
           </div>
-          
+
           {/* Players List */}
           <div className="lg:col-span-2">
             <Card>
@@ -261,8 +297,11 @@ const SetupPage = ({
                 <Badge variant="primary">
                   {players.length} player{players.length !== 1 ? 's' : ''}
                 </Badge>
+                <Button size="sm" variant="secondary" onClick={handleOpenInvite} className="ml-2">
+                  ✉️ Invite
+                </Button>
               </div>
-              
+
               {players.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4 opacity-30">👥</div>
@@ -278,6 +317,7 @@ const SetupPage = ({
                       player={player}
                       onEdit={handleOpenEdit}
                       onDelete={onDeletePlayer}
+                      onBind={handleOpenBind}
                       showStats
                       size="sm"
                     />
@@ -288,7 +328,7 @@ const SetupPage = ({
           </div>
         </div>
       </div>
-      
+
       {/* Edit Player Modal */}
       <Modal
         isOpen={isEditModalOpen}
@@ -320,7 +360,7 @@ const SetupPage = ({
             onChange={(e) => setTempName(e.target.value)}
             fullWidth
           />
-          
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               {t('baseSkillLabel')}
@@ -343,7 +383,7 @@ const SetupPage = ({
               <span>Expert (100)</span>
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               {t('changePhoto')}
@@ -355,6 +395,86 @@ const SetupPage = ({
               className="text-sm"
             />
           </div>
+        </div>
+      </Modal>
+
+      {/* Bind Player Modal */}
+      <Modal
+        isOpen={isBindModalOpen}
+        onClose={() => setBindModalOpen(false)}
+        title={`Bind ${bindingPlayer?.name} to Account`}
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setBindModalOpen(false)}
+              fullWidth
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={handleValuesBind}
+              disabled={!bindEmail.trim()}
+              fullWidth
+            >
+              Bind
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Enter the email address of the user you want to link to this player.
+            They must have logged in to the app at least once.
+          </p>
+          <Input
+            label="Email Address"
+            type="email"
+            value={bindEmail}
+            onChange={(e) => setBindEmail(e.target.value)}
+            placeholder="user@example.com"
+            fullWidth
+          />
+        </div>
+      </Modal>
+
+      {/* Invite Member Modal */}
+      <Modal
+        isOpen={isInviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        title="Invite Member to Group"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setInviteModalOpen(false)}
+              fullWidth
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={handleValuesInvite}
+              disabled={!inviteEmail.trim()}
+              fullWidth
+            >
+              Send Invite
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Enter the email address to send an invitation to.
+            They will receive an email with a link to join this group.
+          </p>
+          <Input
+            label="Email Address"
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="friend@example.com"
+            fullWidth
+          />
         </div>
       </Modal>
     </div>

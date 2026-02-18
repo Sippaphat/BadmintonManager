@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import { config } from '../config/index.js';
-import { User } from '../models/index.js';
+import { User, Invitation, Group } from '../models/index.js';
 import { generateToken } from '../middleware/auth.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 
@@ -13,23 +13,23 @@ const googleClient = new OAuth2Client(config.googleClientId);
  */
 export const googleLogin = asyncHandler(async (req, res) => {
   const { credential } = req.body;
-  
+
   if (!credential) {
     throw new AppError('No credential provided', 400);
   }
-  
+
   try {
     // Verify Google token
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: config.googleClientId,
     });
-    
+
     const payload = ticket.getPayload();
-    
+
     // Find or create user
     let user = await User.findOne({ email: payload.email });
-    
+
     if (!user) {
       user = await User.create({
         email: payload.email,
@@ -37,14 +37,29 @@ export const googleLogin = asyncHandler(async (req, res) => {
         picture: payload.picture,
         googleId: payload.sub
       });
-    } else {
       // Update last login
       await user.updateLastLogin();
     }
-    
+
+    // Check for pending invitations
+    const pendingInvites = await Invitation.find({
+      email: user.email,
+      status: 'pending',
+      expiresAt: { $gt: new Date() }
+    });
+
+    for (const invite of pendingInvites) {
+      const group = await Group.findById(invite.groupId);
+      if (group && !group.hasAccess(user._id)) {
+        await group.shareWithUser(user._id);
+      }
+      invite.status = 'accepted';
+      await invite.save();
+    }
+
     // Generate JWT
     const token = generateToken(user._id, user.email);
-    
+
     res.json({
       success: true,
       user: {
@@ -68,11 +83,11 @@ export const googleLogin = asyncHandler(async (req, res) => {
  */
 export const getCurrentUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId);
-  
+
   if (!user) {
     throw new AppError('User not found', 404);
   }
-  
+
   res.json({
     success: true,
     user: {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
 import axios from "axios";
+import { bindPlayer } from "./services/playerService";
+import { sendInvitation } from "./services/groupService";
 import "./App.css";
 
 // --- CONFIG & THEME ---
@@ -336,7 +338,7 @@ export default function AppWithBackend() {
   const handleLoginSuccess = async (credentialResponse) => {
     try {
       const res = await axios.post(`${API_BASE}/auth/google`, {
-        token: credentialResponse.credential 
+        token: credentialResponse.credential
       });
       const data = res.data;
       if (data.user && data.token) {
@@ -455,7 +457,7 @@ export default function AppWithBackend() {
     if (!shareEmail.trim()) return;
     try {
       const res = await axios.post(`${API_BASE}/groups/${selectedGroup._id}/share`, {
-        email: shareEmail 
+        email: shareEmail
       });
       alert(t("shareSuccess"));
     } catch (err) {
@@ -467,7 +469,7 @@ export default function AppWithBackend() {
     if (!newGroupName.trim()) return;
     try {
       const res = await axios.post(`${API_BASE}/groups`, {
-        name: newGroupName, userId: user._id 
+        name: newGroupName, userId: user._id
       });
       const group = res.data;
       setGroups([...groups, group]);
@@ -483,20 +485,20 @@ export default function AppWithBackend() {
       const data = res.data;
       // Transform backend players to frontend state
       const loadedPlayers = data.players.map((p) => ({
-          id: p._id,
-          name: p.name,
-          photo: p.photo,
-          playCount: p.playCount || 0,
-          winCount: p.winCount || 0,
-          baseSkill: p.baseSkill,
-          elo: p.elo,
-          gamesPlayed: p.gamesPlayed,
-          isPlaying: false,
-          isResting: false,
-        }));
-        setPlayers(loadedPlayers);
-        setSelectedGroup(data);
-        fetchSchedules(data._id);
+        id: p._id,
+        name: p.name,
+        photo: p.photo,
+        playCount: p.playCount || 0,
+        winCount: p.winCount || 0,
+        baseSkill: p.baseSkill,
+        elo: p.elo,
+        gamesPlayed: p.gamesPlayed,
+        isPlaying: false,
+        isResting: false,
+      }));
+      setPlayers(loadedPlayers);
+      setSelectedGroup(data);
+      fetchSchedules(data._id);
     } catch (error) {
       alert(t("errorLoadGroup"));
     }
@@ -585,6 +587,20 @@ export default function AppWithBackend() {
 
       // Updated local state
       const updatedPlayers = players.map((p) => {
+        if (p.id === editingPlayer.id) {
+          return {
+            ...p,
+            name: tempName,
+            photo: newPhotoUrl || p.photo,
+            baseSkill: updatedP.baseSkill,
+          };
+        }
+        return p;
+      });
+
+      // Update courts
+      const updatedCourts = courts.map((c) => {
+        const updatedCourtPlayers = c.players.map((p) => {
           if (p.id === editingPlayer.id) {
             return {
               ...p,
@@ -595,29 +611,42 @@ export default function AppWithBackend() {
           }
           return p;
         });
+        return { ...c, players: updatedCourtPlayers };
+      });
 
-        // Update courts
-        const updatedCourts = courts.map((c) => {
-          const updatedCourtPlayers = c.players.map((p) => {
-            if (p.id === editingPlayer.id) {
-              return {
-                ...p,
-                name: tempName,
-                photo: newPhotoUrl || p.photo,
-                baseSkill: updatedP.baseSkill,
-              };
-            }
-            return p;
-          });
-          return { ...c, players: updatedCourtPlayers };
-        });
-
-        setPlayers(updatedPlayers);
-        setCourts(updatedCourts);
-        setEditModalVisible(false);
-        setEditingPlayer(null);
+      setPlayers(updatedPlayers);
+      setCourts(updatedCourts);
+      setEditModalVisible(false);
+      setEditingPlayer(null);
     } catch (error) {
       alert(t("updateFailed"));
+    }
+  };
+
+  const handleBindPlayer = async (playerId, email) => {
+    if (!selectedGroup) return;
+    try {
+      await bindPlayer(selectedGroup._id, playerId, email);
+      // Update local state to show bound status
+      const updatedPlayers = players.map(p =>
+        p.id === playerId ? { ...p, userId: 'bound' } : p // We don't have the full user object but 'bound' is truthy
+      );
+      setPlayers(updatedPlayers);
+      alert("Player bound successfully!");
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || "Failed to bind player");
+    }
+  };
+
+  const handleInviteMember = async (email) => {
+    if (!selectedGroup) return;
+    try {
+      await sendInvitation(selectedGroup._id, email);
+      alert(t("shareSuccess")); // Reusing share success message or new one
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || "Failed to send invitation");
     }
   };
 
@@ -806,9 +835,9 @@ END:VCALENDAR`;
     if (availablePlayers.length < requiredPlayers) {
       alert(
         t("notEnoughPlayers") +
-          (players.some((p) => p.isResting && !p.isPlaying)
-            ? " " + t("resting")
-            : ""),
+        (players.some((p) => p.isResting && !p.isPlaying)
+          ? " " + t("resting")
+          : ""),
       );
       return;
     }
@@ -1933,302 +1962,302 @@ END:VCALENDAR`;
           </h3>
           <div className="courtsGrid">
 
-          {courts.map((court) => {
-            let team1Players, team2Players;
-            if (gameMode === "singles") {
-              team1Players = [court.players[0]].filter(Boolean);
-              team2Players = [court.players[1]].filter(Boolean);
-            } else {
-              team1Players = court.players.slice(0, 2);
-              team2Players = court.players.slice(2, 4);
-            }
+            {courts.map((court) => {
+              let team1Players, team2Players;
+              if (gameMode === "singles") {
+                team1Players = [court.players[0]].filter(Boolean);
+                team2Players = [court.players[1]].filter(Boolean);
+              } else {
+                team1Players = court.players.slice(0, 2);
+                team2Players = court.players.slice(2, 4);
+              }
 
-            const hasPlayers = court.players.length > 0;
-            const requiredPlayers = gameMode === "doubles" ? 4 : 2;
-            const isFull = court.players.length === requiredPlayers;
+              const hasPlayers = court.players.length > 0;
+              const requiredPlayers = gameMode === "doubles" ? 4 : 2;
+              const isFull = court.players.length === requiredPlayers;
 
-            return (
-              <div key={court.id} className="courtCard">
-                <div className="courtHeader">
-                  <span className="courtTitle">
-                    {t("court")} {court.id}
-                  </span>
+              return (
+                <div key={court.id} className="courtCard">
+                  <div className="courtHeader">
+                    <span className="courtTitle">
+                      {t("court")} {court.id}
+                    </span>
+                    {hasPlayers ? (
+                      <div className="playingBadge">
+                        <span className="playingText">{t("playing")}</span>
+                      </div>
+                    ) : (
+                      <div className="freeBadge">
+                        <span className="freeText">{t("free")}</span>
+                      </div>
+                    )}
+                  </div>
+
                   {hasPlayers ? (
-                    <div className="playingBadge">
-                      <span className="playingText">{t("playing")}</span>
+                    <div>
+                      {/* Scoreboard */}
+                      <div
+                        className="scoreboardMain"
+                        style={{
+                          background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 100%)`,
+                        }}
+                      >
+                        {/* ... Same as before ... */}
+                        <div
+                          className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && isFull ? "selectableTeam" : ""} ${court.serving === "team1" && court.score.team1 === 0 && court.score.team2 === 0 ? "selectedTeam" : ""}`}
+                          onClick={() => {
+                            if (
+                              court.score.team1 === 0 &&
+                              court.score.team2 === 0 &&
+                              isFull
+                            ) {
+                              setServingPlayer(court.id, "team1", 0);
+                            }
+                          }}
+                        >
+                          <div className="teamLabelMain">
+                            Team 1{" "}
+                            {court.score.team1 === 0 &&
+                              court.score.team2 === 0 &&
+                              isFull &&
+                              court.serving === "team1" && <span>🏸</span>}
+                          </div>
+                          <div className="scoreControlsMain">
+                            <button
+                              className="scoreBtnMain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                decrementScore(court.id, "team1");
+                              }}
+                            >
+                              −
+                            </button>
+                            <div
+                              className="scoreDisplayMain"
+                              style={{ color: COLORS.primary }}
+                            >
+                              {court.score.team1}
+                            </div>
+                            <button
+                              className="scoreBtnMain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                incrementScore(court.id, "team1");
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <div className="scoreDividerMain">:</div>
+                        <div
+                          className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && isFull ? "selectableTeam" : ""} ${court.serving === "team2" && court.score.team1 === 0 && court.score.team2 === 0 ? "selectedTeam" : ""}`}
+                          onClick={() => {
+                            if (
+                              court.score.team1 === 0 &&
+                              court.score.team2 === 0 &&
+                              isFull
+                            ) {
+                              setServingPlayer(
+                                court.id,
+                                "team2",
+                                gameMode === "doubles" ? 1 : 0,
+                              );
+                            }
+                          }}
+                        >
+                          <div className="teamLabelMain">
+                            Team 2{" "}
+                            {court.score.team1 === 0 &&
+                              court.score.team2 === 0 &&
+                              isFull &&
+                              court.serving === "team2" && <span>🏸</span>}
+                          </div>
+                          <div className="scoreControlsMain">
+                            <button
+                              className="scoreBtnMain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                decrementScore(court.id, "team2");
+                              }}
+                            >
+                              −
+                            </button>
+                            <div
+                              className="scoreDisplayMain"
+                              style={{ color: COLORS.primary }}
+                            >
+                              {court.score.team2}
+                            </div>
+                            <button
+                              className="scoreBtnMain"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                incrementScore(court.id, "team2");
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visual Court */}
+                      <div className="badmintonCourtMain">
+                        {/* Team 1 Side */}
+                        <div className="courtSideMain team1Side">
+                          <div
+                            className="playerPositionsMain"
+                            style={{
+                              gridTemplateColumns:
+                                gameMode === "singles" ? "1fr" : "1fr 1fr",
+                            }}
+                          >
+                            {(gameMode === "doubles" ? [0, 1] : [0]).map(
+                              (idx) => {
+                                const player = team1Players[idx];
+                                const isServing =
+                                  court.serving === "team1" &&
+                                  idx === court.servingPlayerIndex?.team1;
+
+                                return (
+                                  <div key={idx} className="playerSlotMain">
+                                    {player ? (
+                                      <div
+                                        className={`playerCardMain ${isServing ? "serving" : ""} ${player.photo ? "hasPhoto" : ""}`}
+                                      >
+                                        {player.photo && (
+                                          <img
+                                            src={player.photo}
+                                            className="playerPhotoMain"
+                                            alt=""
+                                          />
+                                        )}
+                                        <div className="playerIconMain">
+                                          {isServing && (
+                                            <span className="serveIconOnPlayer">
+                                              🏸
+                                            </span>
+                                          )}
+                                          {!player.photo && "👤"}
+                                        </div>
+                                        <div className="playerLabelMain">
+                                          {player.name}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="emptySlotMain">
+                                        <div className="emptyIconMain">+</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Net */}
+                        <div className="courtNetMain">
+                          <div className="netLineMain"></div>
+                          <div className="netLabelMain">NET</div>
+                        </div>
+
+                        {/* Team 2 Side */}
+                        <div className="courtSideMain team2Side">
+                          <div
+                            className="playerPositionsMain"
+                            style={{
+                              gridTemplateColumns:
+                                gameMode === "singles" ? "1fr" : "1fr 1fr",
+                            }}
+                          >
+                            {(gameMode === "doubles" ? [0, 1] : [0]).map(
+                              (idx) => {
+                                const player = team2Players[idx];
+                                const isServing =
+                                  court.serving === "team2" &&
+                                  idx === court.servingPlayerIndex?.team2;
+
+                                return (
+                                  <div key={idx} className="playerSlotMain">
+                                    {player ? (
+                                      <div
+                                        className={`playerCardMain ${isServing ? "serving" : ""} ${player.photo ? "hasPhoto" : ""}`}
+                                      >
+                                        {player.photo && (
+                                          <img
+                                            src={player.photo}
+                                            className="playerPhotoMain"
+                                            alt=""
+                                          />
+                                        )}
+                                        <div className="playerIconMain">
+                                          {isServing && (
+                                            <span className="serveIconOnPlayer">
+                                              🏸
+                                            </span>
+                                          )}
+                                          {!player.photo && "👤"}
+                                        </div>
+                                        <div className="playerLabelMain">
+                                          {player.name}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="emptySlotMain">
+                                        <div className="emptyIconMain">+</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="courtActionsMain">
+                        <button
+                          className="customBtnMain"
+                          onClick={() => openCourtModal(court.id)}
+                        >
+                          {t("manage")}
+                        </button>
+                        <button
+                          className="finishBtnMain"
+                          onClick={() => finishMatch(court.id)}
+                        >
+                          {t("finishGame")}
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <div className="freeBadge">
-                      <span className="freeText">{t("free")}</span>
+                    <div>
+                      <div className="emptyCourtMessage">
+                        <span className="emptyCourtIcon">🏸</span>
+                        <span className="emptyCourtText">{t("emptyCourt")}</span>
+                      </div>
+                      <div className="courtButtonsRow">
+                        <button
+                          className="startMatchBtn"
+                          onClick={() => assignMatchToCourt(court.id)}
+                        >
+                          <span className="startMatchBtnText">{t("random")}</span>
+                        </button>
+                        <button
+                          className="customBtn"
+                          onClick={() => openCourtModal(court.id)}
+                        >
+                          <span className="customBtnText">{t("manual")}</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {hasPlayers ? (
-                  <div>
-                    {/* Scoreboard */}
-                    <div
-                      className="scoreboardMain"
-                      style={{
-                        background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.accent} 100%)`,
-                      }}
-                    >
-                      {/* ... Same as before ... */}
-                      <div
-                        className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && isFull ? "selectableTeam" : ""} ${court.serving === "team1" && court.score.team1 === 0 && court.score.team2 === 0 ? "selectedTeam" : ""}`}
-                        onClick={() => {
-                          if (
-                            court.score.team1 === 0 &&
-                            court.score.team2 === 0 &&
-                            isFull
-                          ) {
-                            setServingPlayer(court.id, "team1", 0);
-                          }
-                        }}
-                      >
-                        <div className="teamLabelMain">
-                          Team 1{" "}
-                          {court.score.team1 === 0 &&
-                            court.score.team2 === 0 &&
-                            isFull &&
-                            court.serving === "team1" && <span>🏸</span>}
-                        </div>
-                        <div className="scoreControlsMain">
-                          <button
-                            className="scoreBtnMain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              decrementScore(court.id, "team1");
-                            }}
-                          >
-                            −
-                          </button>
-                          <div
-                            className="scoreDisplayMain"
-                            style={{ color: COLORS.primary }}
-                          >
-                            {court.score.team1}
-                          </div>
-                          <button
-                            className="scoreBtnMain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              incrementScore(court.id, "team1");
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                      <div className="scoreDividerMain">:</div>
-                      <div
-                        className={`scoreTeamMain ${court.score.team1 === 0 && court.score.team2 === 0 && isFull ? "selectableTeam" : ""} ${court.serving === "team2" && court.score.team1 === 0 && court.score.team2 === 0 ? "selectedTeam" : ""}`}
-                        onClick={() => {
-                          if (
-                            court.score.team1 === 0 &&
-                            court.score.team2 === 0 &&
-                            isFull
-                          ) {
-                            setServingPlayer(
-                              court.id,
-                              "team2",
-                              gameMode === "doubles" ? 1 : 0,
-                            );
-                          }
-                        }}
-                      >
-                        <div className="teamLabelMain">
-                          Team 2{" "}
-                          {court.score.team1 === 0 &&
-                            court.score.team2 === 0 &&
-                            isFull &&
-                            court.serving === "team2" && <span>🏸</span>}
-                        </div>
-                        <div className="scoreControlsMain">
-                          <button
-                            className="scoreBtnMain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              decrementScore(court.id, "team2");
-                            }}
-                          >
-                            −
-                          </button>
-                          <div
-                            className="scoreDisplayMain"
-                            style={{ color: COLORS.primary }}
-                          >
-                            {court.score.team2}
-                          </div>
-                          <button
-                            className="scoreBtnMain"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              incrementScore(court.id, "team2");
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Visual Court */}
-                    <div className="badmintonCourtMain">
-                      {/* Team 1 Side */}
-                      <div className="courtSideMain team1Side">
-                        <div
-                          className="playerPositionsMain"
-                          style={{
-                            gridTemplateColumns:
-                              gameMode === "singles" ? "1fr" : "1fr 1fr",
-                          }}
-                        >
-                          {(gameMode === "doubles" ? [0, 1] : [0]).map(
-                            (idx) => {
-                              const player = team1Players[idx];
-                              const isServing =
-                                court.serving === "team1" &&
-                                idx === court.servingPlayerIndex?.team1;
-
-                              return (
-                                <div key={idx} className="playerSlotMain">
-                                  {player ? (
-                                    <div
-                                      className={`playerCardMain ${isServing ? "serving" : ""} ${player.photo ? "hasPhoto" : ""}`}
-                                    >
-                                      {player.photo && (
-                                        <img
-                                          src={player.photo}
-                                          className="playerPhotoMain"
-                                          alt=""
-                                        />
-                                      )}
-                                      <div className="playerIconMain">
-                                        {isServing && (
-                                          <span className="serveIconOnPlayer">
-                                            🏸
-                                          </span>
-                                        )}
-                                        {!player.photo && "👤"}
-                                      </div>
-                                      <div className="playerLabelMain">
-                                        {player.name}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="emptySlotMain">
-                                      <div className="emptyIconMain">+</div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            },
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Net */}
-                      <div className="courtNetMain">
-                        <div className="netLineMain"></div>
-                        <div className="netLabelMain">NET</div>
-                      </div>
-
-                      {/* Team 2 Side */}
-                      <div className="courtSideMain team2Side">
-                        <div
-                          className="playerPositionsMain"
-                          style={{
-                            gridTemplateColumns:
-                              gameMode === "singles" ? "1fr" : "1fr 1fr",
-                          }}
-                        >
-                          {(gameMode === "doubles" ? [0, 1] : [0]).map(
-                            (idx) => {
-                              const player = team2Players[idx];
-                              const isServing =
-                                court.serving === "team2" &&
-                                idx === court.servingPlayerIndex?.team2;
-
-                              return (
-                                <div key={idx} className="playerSlotMain">
-                                  {player ? (
-                                    <div
-                                      className={`playerCardMain ${isServing ? "serving" : ""} ${player.photo ? "hasPhoto" : ""}`}
-                                    >
-                                      {player.photo && (
-                                        <img
-                                          src={player.photo}
-                                          className="playerPhotoMain"
-                                          alt=""
-                                        />
-                                      )}
-                                      <div className="playerIconMain">
-                                        {isServing && (
-                                          <span className="serveIconOnPlayer">
-                                            🏸
-                                          </span>
-                                        )}
-                                        {!player.photo && "👤"}
-                                      </div>
-                                      <div className="playerLabelMain">
-                                        {player.name}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="emptySlotMain">
-                                      <div className="emptyIconMain">+</div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            },
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Controls */}
-                    <div className="courtActionsMain">
-                      <button
-                        className="customBtnMain"
-                        onClick={() => openCourtModal(court.id)}
-                      >
-                        {t("manage")}
-                      </button>
-                      <button
-                        className="finishBtnMain"
-                        onClick={() => finishMatch(court.id)}
-                      >
-                        {t("finishGame")}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="emptyCourtMessage">
-                      <span className="emptyCourtIcon">🏸</span>
-                      <span className="emptyCourtText">{t("emptyCourt")}</span>
-                    </div>
-                    <div className="courtButtonsRow">
-                      <button
-                        className="startMatchBtn"
-                        onClick={() => assignMatchToCourt(court.id)}
-                      >
-                        <span className="startMatchBtnText">{t("random")}</span>
-                      </button>
-                      <button
-                        className="customBtn"
-                        onClick={() => openCourtModal(court.id)}
-                      >
-                        <span className="customBtnText">{t("manual")}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
           </div>
 
           {/* Player Stats Section */}

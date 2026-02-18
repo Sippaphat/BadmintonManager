@@ -19,6 +19,11 @@ router.post('/:groupId/share', groupValidation.share, groupController.shareGroup
 router.delete('/:groupId/share/:userId', groupValidation.getById, groupController.unshareGroup);
 
 // Group settings
+
 router.patch('/:groupId/settings', groupValidation.getById, groupController.updateGroupSettings);
+
+// Invitations
+router.post('/:groupId/invite', groupValidation.getById, groupController.sendInvitation);
+router.post('/invitations/accept', groupController.acceptInvitation);
 
 export default router;

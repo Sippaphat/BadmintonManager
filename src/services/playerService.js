@@ -7,7 +7,7 @@ export async function addPlayer(groupId, playerData) {
   const formData = new FormData();
   formData.append('name', playerData.name);
   formData.append('baseSkill', playerData.baseSkill || 50);
-  
+
   if (playerData.photo) {
     formData.append('photo', playerData.photo);
   }
@@ -17,7 +17,7 @@ export async function addPlayer(groupId, playerData) {
       'Content-Type': 'multipart/form-data',
     },
   });
-  
+
   return response.data.player;
 }
 
@@ -26,7 +26,7 @@ export async function addPlayer(groupId, playerData) {
  */
 export async function updatePlayer(groupId, playerId, updates) {
   const formData = new FormData();
-  
+
   if (updates.name !== undefined) {
     formData.append('name', updates.name);
   }
@@ -38,7 +38,7 @@ export async function updatePlayer(groupId, playerId, updates) {
   }
 
   const response = await api.put(
-    `/api/groups/${groupId}/players/${playerId}`, 
+    `/api/groups/${groupId}/players/${playerId}`,
     formData,
     {
       headers: {
@@ -46,7 +46,7 @@ export async function updatePlayer(groupId, playerId, updates) {
       },
     }
   );
-  
+
   return response.data.player;
 }
 
@@ -76,5 +76,28 @@ export async function resetPlayerStats(groupId, resetType = 'all') {
   const response = await api.post(`/api/groups/${groupId}/players/reset`, {
     resetType, // 'all', 'playCount', 'winCount'
   });
+  return response.data;
+}
+/**
+ * Bind player to a user account
+ */
+export async function bindPlayer(groupId, playerId, email) {
+  const response = await api.post(`/api/groups/${groupId}/players/${playerId}/bind`, { email });
+  return response.data;
+}
+
+/**
+ * Bind self to a player
+ */
+export async function bindSelf(groupId, playerId) {
+  const response = await api.post(`/api/groups/${groupId}/players/${playerId}/bind-self`);
+  return response.data;
+}
+
+/**
+ * Unbind player from user account
+ */
+export async function unbindPlayer(groupId, playerId) {
+  const response = await api.post(`/api/groups/${groupId}/players/${playerId}/unbind`);
   return response.data;
 }

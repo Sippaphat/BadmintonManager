@@ -39,3 +39,18 @@ export async function deleteGroup(groupId) {
   const response = await api.delete(`/api/groups/${groupId}`);
   return response.data;
 }
+/**
+ * Send invitation to join group
+ */
+export async function sendInvitation(groupId, email) {
+  const response = await api.post(`/api/groups/${groupId}/invite`, { email });
+  return response.data;
+}
+
+/**
+ * Accept invitation
+ */
+export async function acceptInvitation(token) {
+  const response = await api.post('/api/groups/invitations/accept', { token });
+  return response.data;
+}
