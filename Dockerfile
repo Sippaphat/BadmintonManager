@@ -1,9 +1,10 @@
-FROM node:18-alpine
+# Build stage
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm and serve
-RUN npm install -g pnpm serve
+# Install pnpm
+RUN npm install -g pnpm
 
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
@@ -25,8 +26,19 @@ ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 # Build the application
 RUN pnpm run build
 
-# Expose port 8000 for serve
-EXPOSE 8000
+# Production stage
+FROM node:18-alpine AS runner
+
+WORKDIR /app
+
+# Install serve
+RUN npm install -g serve
+
+# Copy built assets from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Expose port 9009
+EXPOSE 9009
 
 # Start serve
-CMD ["serve", "-s", "dist", "-l", "8000"]
+CMD ["serve", "-s", "dist", "-l", "9009"]

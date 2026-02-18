@@ -10,14 +10,17 @@ RUN npm install -g pnpm
 # Copy backend package files
 COPY server/package.json server/pnpm-lock.yaml* ./
 
-# Install backend dependencies
-RUN pnpm install --prod
+# Install backend dependencies (production only)
+RUN pnpm install --prod --frozen-lockfile
 
 # Copy the server source code
 COPY server/ ./
 
-# Ensure uploads directory exists
-RUN mkdir -p uploads
+# Ensure uploads directory exists and set permissions
+RUN mkdir -p uploads && chown -R node:node /app/server
+
+# Use non-root user
+USER node
 
 # Expose the API port
 EXPOSE 5000
