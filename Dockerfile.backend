@@ -1,31 +1,17 @@
-# Use Node.js 18 on Alpine Linux
 FROM node:18-alpine
 
-# Set working directory
 WORKDIR /app/server
 
-# Install pnpm and curl (for healthcheck) globally
+# Install curl (for healthcheck) + pnpm
 RUN apk add --no-cache curl && npm install -g pnpm
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-# Copy backend package files
 COPY server/package.json server/pnpm-lock.yaml* ./
-
-# Install backend dependencies (production only)
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy the server source code
 COPY server/ ./
 
-# Ensure uploads directory exists and set permissions
 RUN mkdir -p uploads && chown -R node:node /app/server
-
-# Use non-root user
 USER node
 
-# Expose the API port
 EXPOSE 5000
-
-# Start the server
 CMD ["node", "index.js"]
