@@ -38,7 +38,7 @@ RUN npm install -g serve
 COPY --from=builder /app/dist ./dist
 
 # Copy serve configuration
-COPY serve.json ./serve.json
+COPY serve.json ./dist/serve.json
 
 # Expose port 9009
 EXPOSE 9009
