@@ -37,8 +37,11 @@ RUN npm install -g serve
 # Copy built assets from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy serve configuration
+COPY serve.json ./serve.json
+
 # Expose port 9009
 EXPOSE 9009
 
 # Start serve
-CMD ["serve", "-s", "dist", "-l", "9009"]
+CMD ["serve", "-s", "dist", "-l", "9009", "-c", "serve.json"]

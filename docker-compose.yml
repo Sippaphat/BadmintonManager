@@ -8,14 +8,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      network: host
     container_name: badminton-api
-    ports:
-      - "5000:5000"
+    # ports:
+    #   - "5000:5000"
     env_file:
       - ./server/.env
     environment:
-      - CORS_ORIGIN=http://localhost:9009,http://localhost:5173,https://badminton-api.xenocer.com
+      - CORS_ORIGIN=http://localhost:9009,http://localhost:5173,https://badminton-api.xenocer.com,https://badminton.xenocer.com
       - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
     volumes:
       # CRITICAL: This saves uploaded photos on your server disk
