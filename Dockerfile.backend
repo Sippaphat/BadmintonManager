@@ -4,8 +4,8 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app/server
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Install pnpm and curl (for healthcheck) globally
+RUN apk add --no-cache curl && npm install -g pnpm
 
 # Copy backend package files
 COPY server/package.json server/pnpm-lock.yaml* ./

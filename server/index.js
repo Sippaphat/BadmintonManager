@@ -17,9 +17,18 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Middleware - Order matters!
-app.use(cors());
+// Middleware - Order matters!
+app.use(cors({
+  origin: config.corsOrigin.includes(',') ? config.corsOrigin.split(',') : config.corsOrigin,
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Serve static files (uploaded images)
 const uploadDir = path.join(__dirname, 'uploads');

@@ -13,9 +13,18 @@ services:
       - "5000:5000"
     env_file:
       - ./server/.env
+    environment:
+      - CORS_ORIGIN=http://localhost:9009,http://localhost:5173,https://badminton-api.xenocer.com
+      - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
     volumes:
       # CRITICAL: This saves uploaded photos on your server disk
       - ./server/uploads:/app/server/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     restart: always
 
   # ----------------------------
