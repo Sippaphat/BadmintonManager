@@ -4,12 +4,14 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app/server
 
-# Copy backend specific package files (assuming backend has its own package.json inside /server)
-# If your backend dependencies are in the ROOT package.json, change this to: COPY package.json package-lock.json* ../
-COPY server/package.json server/package-lock.json* ./
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Copy backend package files
+COPY server/package.json server/pnpm-lock.yaml* ./
 
 # Install backend dependencies
-RUN npm install --production
+RUN pnpm install --prod
 
 # Copy the server source code
 COPY server/ ./

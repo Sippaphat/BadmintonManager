@@ -1,0 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+    .font-pixel {
+        font-family: 'Press Start 2P', cursive;
+    }
+
+    .text-shadow-md {
+        text-shadow: 2px 2px 0px rgba(0, 0, 0, 1);
+    }
+}
+
+/* Custom Animations */
+@keyframes walkToTarget {
+    from {
+        left: var(--start-x);
+        top: var(--start-y);
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    to {
+        left: var(--end-x);
+        top: var(--end-y);
+        transform: translate(-50%, -50%) scale(0.6);
+        /* Shrink a bit for depth if going up? or stay same? court is further back? */
+    }
+}
+
+.animate-walking-path {
+    position: fixed;
+    left: var(--start-x);
+    top: var(--start-y);
+    transform: translate(-50%, -50%);
+    animation: walkToTarget 1s cubic-bezier(0.4, 0, 0.2, 1) both;
+    z-index: 100 !important;
+}
+
+.pixel-art {
+    image-rendering: pixelated;
+}
+
+.pixel-border {
+    box-shadow:
+        -4px 0 0 0 #000,
+        4px 0 0 0 #000,
+        0 -4px 0 0 #000,
+        0 4px 0 0 #000;
+    margin: 4px;
+}
+
+.pixel-btn {
+    position: relative;
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #fca5a5;
+    color: #000;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 12px;
+    text-decoration: none;
+    border: 4px solid #000;
+    box-shadow: 4px 4px 0px 0px #000;
+    transition: all 0.1s;
+    cursor: pointer;
+}
+
+.pixel-btn:active {
+    transform: translate(4px, 4px);
+    box-shadow: 0px 0px 0px 0px #000;
+}
+
+.pixel-card {
+    background: white;
+    border: 4px solid #000;
+    position: relative;
+}
+
+.pixel-card::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    border: 2px solid #e5e7eb;
+    pointer-events: none;
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.animate-float {
+    animation: float 2s ease-in-out infinite;
+}
+
+@keyframes walk {
+    0% {
+        transform: translateX(0) rotate(0deg);
+    }
+
+    25% {
+        transform: translateX(2px) rotate(5deg);
+    }
+
+    50% {
+        transform: translateX(0) rotate(0deg);
+    }
+
+    75% {
+        transform: translateX(-2px) rotate(-5deg);
+    }
+
+    100% {
+        transform: translateX(0) rotate(0deg);
+    }
+}
+
+.animate-walk {
+    animation: walk 0.5s steps(4) infinite;
+}
+
+@keyframes sleep {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(0.5);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translate(10px, -10px) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(20px, -20px) scale(1.5);
+    }
+}
+
+.zzz-bubble::before {
+    content: 'Z';
+    position: absolute;
+    right: -5px;
+    top: -10px;
+    animation: sleep 2s infinite;
+    font-family: 'Press Start 2P', cursive;
+    color: #6366f1;
+}
+
+.zzz-bubble::after {
+    content: 'Z';
+    position: absolute;
+    right: -10px;
+    top: -15px;
+    animation: sleep 2s infinite 0.5s;
+    font-family: 'Press Start 2P', cursive;
+    color: #6366f1;
+    font-size: 0.8em;
+}
+
+/* Court Net Style */
+.pixel-net {
+    background-image:
+        linear-gradient(#fff 2px, transparent 2px),
+        linear-gradient(90deg, #fff 2px, transparent 2px);
+    background-size: 10px 10px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-top: 4px solid white;
+}
+
+@keyframes scroll-bg {
+    0% {
+        background-position: 0 0;
+    }
+
+    100% {
+        background-position: 100% 100%;
+    }
+}
+
+.animate-scroll-bg {
+    background-image:
+        linear-gradient(45deg, #1e293b 25%, transparent 25%),
+        linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #1e293b 75%),
+        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+    background-size: 40px 40px;
+    background-color: #0f172a;
+    animation: scroll-bg 20s linear infinite;
+}
+
+/* Optional: Add a simple cloud layer if needed via pseudo-elements later */

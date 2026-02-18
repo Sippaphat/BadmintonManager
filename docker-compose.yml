@@ -11,16 +11,11 @@ services:
     container_name: badminton-api
     ports:
       - "5000:5000"
-    environment:
-      - PORT=5000
-      # Replace this with your real MongoDB Atlas connection string
-      - MONGO_URI=mongodb+srv://pluemp_db_user:haKuhAcSWdNMxLgX@buddi.gunuse4.mongodb.net/
-      # Change this to a secure random string for production
-      - JWT_SECRET=123456
-      - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
+    env_file:
+      - ./server/.env
     volumes:
       # CRITICAL: This saves uploaded photos on your server disk
-      - ./uploads:/app/server/uploads
+      - ./server/uploads:/app/server/uploads
     restart: always
 
   # ----------------------------

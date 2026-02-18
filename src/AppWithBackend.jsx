@@ -237,7 +237,9 @@ const TRANSLATIONS = {
 };
 
 // Remove trailing slash if present
-const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+// const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+const API_BASE = "http://localhost:5000";
+
 
 // --- ELO / WEIGHT LOGIC ---
 function normBase(base, min = 0, max = 100) {
@@ -1929,6 +1931,8 @@ END:VCALENDAR`;
             🏸 {t("gameTitle")} ({numberOfCourts}) —{" "}
             {t("target").replace(":", "")} {gameTarget}
           </h3>
+          <div className="courtsGrid">
+
           {courts.map((court) => {
             let team1Players, team2Players;
             if (gameMode === "singles") {
@@ -2225,6 +2229,7 @@ END:VCALENDAR`;
               </div>
             );
           })}
+          </div>
 
           {/* Player Stats Section */}
           <div
