@@ -35,6 +35,11 @@ router.delete(
 );
 
 // Player stats
+router.get(
+  '/:groupId/players/:playerId/statistics',
+  playerController.getPlayerStatistics
+);
+
 router.patch(
   '/:groupId/players/:playerId/stats',
   playerValidation.updateStats,

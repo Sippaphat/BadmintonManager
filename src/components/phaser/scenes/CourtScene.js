@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import pixelCourt from '../../../assets/pixel/pixel_court_theme_1_1770886146122.png'; // Fallback
 import woodFloor from '../../../assets/pixel/pixel_court_layered_wood_1770893361339.png'; // Generated
 import netSprite from '../../../assets/pixel/pixel_net_sprite_1770893381026.png'; // Generated
+import { getImageUrl } from '../../../utils/imageUrl';
 // import parkBg from '../../../assets/pixel/pixel_bg_park_1770892975461.png'; // Use provided park BG if available or fallback
 
 export default class CourtScene extends Phaser.Scene {
@@ -116,7 +117,7 @@ export default class CourtScene extends Phaser.Scene {
 
             // Interpolate Y
             const topY = p00.y + (p10.y - p00.y) * u;
-            const botY = p01.y + (p11.y - p01.y) * u;
+            const botY = p01.y + (p11.y - p01.y) * v;
             const y = topY + (botY - topY) * v;
 
             return { x, y };
@@ -588,7 +589,7 @@ export default class CourtScene extends Phaser.Scene {
             // --- Dynamic Texture Loading ---
             const textureKey = `player-${player.id}`;
             if (!this.textures.exists(textureKey) && player.photo) {
-                const src = typeof player.photo === 'string' ? player.photo : URL.createObjectURL(player.photo);
+                const src = getImageUrl(player.photo);
 
                 // Load image
                 this.load.image(textureKey, src);

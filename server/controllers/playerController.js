@@ -1,4 +1,4 @@
-import { Player, Group, User } from '../models/index.js';
+import { Player, Group, User, MatchParticipant, PairingHistory } from '../models/index.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { getFileUrl } from '../middleware/upload.js';
 import path from 'path';
@@ -164,7 +164,7 @@ export const updatePlayer = asyncHandler(async (req, res) => {
  */
 export const updatePlayerStats = asyncHandler(async (req, res) => {
   const { groupId, playerId } = req.params;
-  const { playCount, winCount, elo, gamesPlayed } = req.body;
+  const { playCount, winCount, elo, gamesPlayed, restCounter, partnerHistory } = req.body;
 
   // Check group access
   const group = await Group.findById(groupId);
@@ -190,6 +190,13 @@ export const updatePlayerStats = asyncHandler(async (req, res) => {
   if (typeof winCount === 'number') updates.winCount = winCount;
   if (typeof elo === 'number') updates.elo = elo;
   if (typeof gamesPlayed === 'number') updates.gamesPlayed = gamesPlayed;
+  if (typeof restCounter === 'number') {
+    updates.restCounter = restCounter;
+    if (restCounter > (player.restCounter || 0)) {
+      updates.totalRestRounds = (player.totalRestRounds || 0) + (restCounter - (player.restCounter || 0));
+    }
+  }
+  if (Array.isArray(partnerHistory)) updates.partnerHistory = partnerHistory;
 
   await player.updateStats(updates);
 
@@ -488,3 +495,137 @@ export const unbindPlayer = asyncHandler(async (req, res) => {
     message: 'Player unbound successfully'
   });
 });
+
+/**
+ * @desc    Get comprehensive player statistics
+ * @route   GET /api/groups/:groupId/players/:playerId/statistics
+ * @access  Private
+ */
+export const getPlayerStatistics = asyncHandler(async (req, res) => {
+  const { groupId, playerId } = req.params;
+
+  // Check group access
+  const group = await Group.findById(groupId);
+  if (!group || !group.hasAccess(req.userId)) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const player = await Player.findOne({ _id: playerId, groupId });
+  if (!player) {
+    throw new AppError('Player not found', 404);
+  }
+
+  // 1. Current Elo (player.elo) & 2. Win %
+  const currentElo = Math.round(player.elo || 1500);
+  const winPercentage = player.gamesPlayed > 0
+    ? Math.round(((player.winCount || 0) / player.gamesPlayed) * 100)
+    : 0;
+
+  // 3. Elo Trend (Last 10 matches)
+  const recentMatches = await MatchParticipant.find({ playerId, groupId })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .select('eloAfter createdAt')
+    .lean();
+
+  // Reverse to make it chronological (left to right) for charting
+  const eloTrend = recentMatches.reverse().map(m => ({
+    elo: Math.round(m.eloAfter),
+    date: m.createdAt
+  }));
+
+  // If no matches, add a baseline dot
+  if (eloTrend.length === 0) {
+    eloTrend.push({ elo: currentElo, date: Date.now() });
+  }
+
+  // 4 & 5. Best Partner and Toughest Opponent
+  const partnerships = await PairingHistory.find({
+    groupId,
+    $or: [{ player1Id: playerId }, { player2Id: playerId }]
+  }).populate('player1Id player2Id', 'name photo').lean();
+
+  let bestPartner = null;
+  let bestPartnerWinRate = -1;
+  let toughestOpponent = null;
+  let highestLosses = -1;
+  let totalUniquePartners = 0;
+
+  partnerships.forEach(p => {
+    const isP1 = p.player1Id._id.toString() === playerId.toString();
+    const partner = isP1 ? p.player2Id : p.player1Id;
+    if (!partner) return; // defensive
+
+    // Partners logic
+    if (p.timesPartnered > 0) {
+      totalUniquePartners++;
+      const winRate = p.winsTogether / p.timesPartnered;
+      if (winRate > bestPartnerWinRate || (winRate === bestPartnerWinRate && p.winsTogether > (bestPartner?.winsTogether || 0))) {
+        bestPartnerWinRate = winRate;
+        bestPartner = {
+          id: partner._id,
+          name: partner.name,
+          photo: partner.photo,
+          winRate: Math.round(winRate * 100),
+          winsTogether: p.winsTogether,
+          timesPartnered: p.timesPartnered
+        };
+      }
+    }
+
+    // Opponent logic
+    // Losses for current player:
+    const myLossesAgainstThem = isP1 ? (p.p2Wins || 0) : (p.p1Wins || 0);
+    const myWinsAgainstThem = isP1 ? (p.p1Wins || 0) : (p.p2Wins || 0);
+    const timesPlayedAgainst = myLossesAgainstThem + myWinsAgainstThem;
+
+    if (myLossesAgainstThem > highestLosses || (myLossesAgainstThem === highestLosses && myLossesAgainstThem > 0 && timesPlayedAgainst > (toughestOpponent?.timesPlayed || 0))) {
+      highestLosses = myLossesAgainstThem;
+      toughestOpponent = {
+        id: partner._id,
+        name: partner.name,
+        photo: partner.photo,
+        losses: myLossesAgainstThem,
+        timesPlayed: timesPlayedAgainst
+      };
+    }
+  });
+
+  // 6. Rest Ratio
+  const totalRounds = (player.totalRestRounds || 0) + (player.gamesPlayed || 0);
+  const restRatio = totalRounds > 0
+    ? Math.round(((player.totalRestRounds || 0) / totalRounds) * 100)
+    : 0;
+
+  // 7. Point Differential
+  // Using MongoDB aggregation to get the average point differential
+  const matchStats = await MatchParticipant.aggregate([
+    { $match: { playerId: player._id, groupId: group._id } },
+    { $group: { _id: null, avgDiff: { $avg: "$pointDifferential" }, totalDiff: { $sum: "$pointDifferential" } } }
+  ]);
+  const avgPointDiff = matchStats.length > 0 ? +(matchStats[0].avgDiff.toFixed(1)) : 0;
+
+  // 8. Rotation Progress
+  const totalOtherPlayers = await Player.countDocuments({ groupId, isActive: true, _id: { $ne: playerId } });
+  const rotationProgress = {
+    uniquePartners: totalUniquePartners,
+    totalPossible: totalOtherPlayers,
+    percentage: totalOtherPlayers > 0 ? Math.round((totalUniquePartners / totalOtherPlayers) * 100) : 0
+  };
+
+  res.json({
+    success: true,
+    statistics: {
+      currentElo,
+      winPercentage,
+      totalGames: player.gamesPlayed || 0,
+      eloTrend,
+      bestPartner,
+      toughestOpponent: highestLosses > 0 ? toughestOpponent : null,
+      restRatio,
+      avgPointDiff,
+      rotationProgress
+    }
+  });
+});
+

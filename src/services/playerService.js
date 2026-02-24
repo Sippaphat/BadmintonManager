@@ -12,11 +12,7 @@ export async function addPlayer(groupId, playerData) {
     formData.append('photo', playerData.photo);
   }
 
-  const response = await api.post(`/api/groups/${groupId}/players`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  const response = await api.post(`/api/groups/${groupId}/players`, formData);
 
   return response.data.player;
 }
@@ -39,12 +35,7 @@ export async function updatePlayer(groupId, playerId, updates) {
 
   const response = await api.put(
     `/api/groups/${groupId}/players/${playerId}`,
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
+    formData
   );
 
   return response.data.player;
@@ -67,6 +58,16 @@ export async function updatePlayerStats(groupId, playerId, stats) {
     stats
   );
   return response.data.player;
+}
+
+/**
+ * Get comprehensive player statistics
+ */
+export async function getPlayerStatistics(groupId, playerId) {
+  const response = await api.get(
+    `/api/groups/${groupId}/players/${playerId}/statistics`
+  );
+  return response.data.statistics;
 }
 
 /**

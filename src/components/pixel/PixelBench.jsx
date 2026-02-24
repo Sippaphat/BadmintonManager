@@ -1,6 +1,6 @@
 import React from 'react';
-import pixelBench from '../../assets/pixel/pixel_bench_1770886196720.png';
 import PixelPlayer from './PixelPlayer';
+import { getImageUrl } from '../../utils/imageUrl';
 
 const PixelBench = ({ players, totalPlayers = 12, onPlayerClick, onToggleRest }) => {
     // Split players into two rows for stadium seating
@@ -17,8 +17,8 @@ const PixelBench = ({ players, totalPlayers = 12, onPlayerClick, onToggleRest })
     const BenchRow = ({ users, isBack }) => {
         return (
             <div
-                className={`relative flex justify-center items-end gap-6 px-12 transition-all duration-300 ${isBack ? 'scale-90 opacity-90 -mb-8 z-0' : 'z-10'}`}
-                style={{ minWidth: `${minBenchWidth}px` }}
+                className={`relative flex justify - center items - end gap - 6 px - 12 transition - all duration - 300 ${isBack ? 'scale-90 opacity-90 -mb-8 z-0' : 'z-10'} `}
+                style={{ minWidth: `${minBenchWidth} px` }}
             >
                 {/* Bench Structure (CSS Draw) */}
                 <div className="absolute bottom-2 left-0 right-0 h-4 bg-[#8B4513] border-2 border-black shadow-[4px_4px_0_rgba(0,0,0,0.3)]"></div>
@@ -33,7 +33,7 @@ const PixelBench = ({ players, totalPlayers = 12, onPlayerClick, onToggleRest })
                     <div key={player.id} className="relative group mb-4 transition-transform hover:-translate-y-2">
                         <PixelPlayer
                             name={player.name}
-                            photo={player.photo}
+                            photo={player.photo ? getImageUrl(player.photo) : null}
                             state={player.isResting ? 'sleep' : 'idle'}
                             variant="sitting"
                             onClick={() => onPlayerClick(player)}

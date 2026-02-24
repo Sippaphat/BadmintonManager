@@ -2,12 +2,12 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
 // Google OAuth Configuration
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   "634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com";
 
 // Game Configuration
 export const DEFAULT_COURTS = 2;
-export const DEFAULT_TARGET_SCORE = 21;
+export const DEFAULT_TARGET_SCORE = 15;
 export const DEFAULT_BASE_SKILL = 50;
 export const DEFAULT_ELO = 1500;
 

@@ -2,106 +2,132 @@ import { calculateCompositeSkill } from './eloSystem';
 import { PLAYERS_PER_COURT } from '../constants/config';
 
 /**
- * Get available players (not currently playing and not resting)
+ * Get available players (not currently playing and not resting voluntarily)
  */
 export function getAvailablePlayers(players) {
   return players.filter(p => !p.isPlaying && !p.isResting);
 }
 
 /**
- * Get players sorted by play count (ascending) for queue
+ * Rule 3: Select players for the round. 
+ * Choose players with the highest rest counter and the lowest total games played.
  */
 export function getPlayerQueue(players) {
   return [...players].sort((a, b) => {
+    // 1. Highest rest counter first
+    const restDiff = (b.restCounter || 0) - (a.restCounter || 0);
+    if (restDiff !== 0) return restDiff;
+
+    // 2. Lowest total games played first
+    const gamesDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+    if (gamesDiff !== 0) return gamesDiff;
+
+    // 3. Fallback: lowest playCount
     const playDiff = (a.playCount || 0) - (b.playCount || 0);
     if (playDiff !== 0) return playDiff;
-    
-    // If play count is equal, prioritize by rest time (last finished time)
+
+    // 4. Fallback: longest wait time
     return (a.lastFinishTime || 0) - (b.lastFinishTime || 0);
   });
 }
 
 /**
- * Calculate team balance score (lower is better balanced)
+ * Rule 9 & 10: Apply pairing penalty and force rotation.
+ * Checks if two players have a pairing penalty. Returns true if they are penalized.
  */
-function calculateTeamBalance(team1, team2) {
-  const skill1 = team1.reduce((sum, p) => sum + calculateCompositeSkill(p), 0);
-  const skill2 = team2.reduce((sum, p) => sum + calculateCompositeSkill(p), 0);
-  return Math.abs(skill1 - skill2);
+function hasPairingPenalty(player1, player2, allPlayersCount) {
+  const p1History = player1.partnerHistory || [];
+  const p2History = player2.partnerHistory || [];
+
+  // If they are in each other's history, they have a penalty
+  const penalized = p1History.includes(player2._id || player2.id) || p2History.includes(player1._id || player1.id);
+
+  // Rule 10: Remove the pairing penalty only after those two players team up with every other person.
+  // We trigger the clear on the backend, so here we just check if it exists.
+  return penalized;
 }
 
 /**
- * Generate all possible team combinations for doubles (2v2)
+ * Rule 5 & 6: Sort by Elo and build teams [1, 4] vs [2, 3]
+ * with Pairing Penalty check.
  */
-function generateDoublesTeamCombinations(players) {
-  const combinations = [];
-  const n = players.length;
+function generateDoublesMatchup(available) {
+  if (available.length < 4) return null;
 
-  // Generate all combinations of 2 players for team 1
-  for (let i = 0; i < n - 1; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const team1 = [players[i], players[j]];
-      const remaining = players.filter((_, idx) => idx !== i && idx !== j);
-      
-      // Generate all combinations of 2 players for team 2 from remaining
-      for (let k = 0; k < remaining.length - 1; k++) {
-        for (let l = k + 1; l < remaining.length; l++) {
-          const team2 = [remaining[k], remaining[l]];
-          combinations.push({ team1, team2 });
+  const sortedQueue = getPlayerQueue(available);
+
+  // We need to pick 4 players that don't violate the pairing penalty when grouped as [Highest + Lowest, Next + Next]
+  // Because the queue might dictate top 4, but if putting the highest and lowest together violates a penalty we might need to swap the lowest with the next person in queue.
+  let selectedPlayers = null;
+  let team1 = null;
+  let team2 = null;
+
+  // Find the first valid group of 4 players
+  // Start with top 4 in queue. If they fail the pairing penalty, we try swapping the 4th, 3rd, 2nd, 1st players with others down the line.
+  // For simplicity, we try the greedy approach: take top 4. check pairing. If invalid, swap out the lowest Elo player for the 5th in queue, etc.
+
+  for (let i = 0; i < sortedQueue.length - 3; i++) {
+    for (let j = i + 1; j < sortedQueue.length - 2; j++) {
+      for (let k = j + 1; k < sortedQueue.length - 1; k++) {
+        for (let l = k + 1; l < sortedQueue.length; l++) {
+
+          let candidateGroup = [sortedQueue[i], sortedQueue[j], sortedQueue[k], sortedQueue[l]];
+
+          // Rule 5: Sort the selected players by their Elo rating.
+          candidateGroup.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
+
+          // Rule 6: pair the highest rated player (0) with the lowest rated player (3).
+          // Pair the next highest player (1) with the next lowest player (2).
+          const candidateTeam1 = [candidateGroup[0], candidateGroup[3]];
+          const candidateTeam2 = [candidateGroup[1], candidateGroup[2]];
+
+          // Check penalties
+          const team1Penalized = hasPairingPenalty(candidateTeam1[0], candidateTeam1[1], available.length);
+          const team2Penalized = hasPairingPenalty(candidateTeam2[0], candidateTeam2[1], available.length);
+
+          if (!team1Penalized && !team2Penalized) {
+            team1 = candidateTeam1;
+            team2 = candidateTeam2;
+            selectedPlayers = candidateGroup;
+            break;
+          }
         }
+        if (selectedPlayers) break;
       }
+      if (selectedPlayers) break;
     }
+    if (selectedPlayers) break;
   }
 
-  return combinations;
+  // Fallback: If ALL combinations of 4 players have penalties (or we couldn't find a valid team), 
+  // just ignore the penalty for the top 4 in queue.
+  if (!selectedPlayers) {
+    const top4 = sortedQueue.slice(0, 4);
+    top4.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
+    team1 = [top4[0], top4[3]];
+    team2 = [top4[1], top4[2]];
+  }
+
+  return { team1, team2 };
 }
 
-/**
- * Generate matchup for singles (1v1)
- */
-function generateSinglesMatchup(players) {
-  if (players.length < 2) return null;
+function generateSinglesMatchup(available) {
+  if (available.length < 2) return null;
 
-  // For singles, just pair the first two players in queue
-  // or use skill-based matchmaking
-  const sortedByQueue = getPlayerQueue(players);
-  
+  const sortedQueue = getPlayerQueue(available);
+
+  // For singles, simply take top 2 in queue, ignore pairing penalty (it's 1v1)
+  const top2 = sortedQueue.slice(0, 2);
+  top2.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
+
   return {
-    team1: [sortedByQueue[0]],
-    team2: [sortedByQueue[1]],
+    team1: [top2[0]],
+    team2: [top2[1]],
   };
 }
 
 /**
- * Generate fair matchup for doubles (2v2) using balanced matchmaking
- */
-function generateDoublesMatchup(players) {
-  if (players.length < 4) return null;
-
-  const sortedByQueue = getPlayerQueue(players);
-  const topPlayers = sortedByQueue.slice(0, 4);
-
-  // Generate all possible team combinations
-  const combinations = generateDoublesTeamCombinations(topPlayers);
-
-  // Find the most balanced combination
-  let bestMatchup = null;
-  let bestBalance = Infinity;
-
-  for (const combo of combinations) {
-    const balance = calculateTeamBalance(combo.team1, combo.team2);
-    if (balance < bestBalance) {
-      bestBalance = balance;
-      bestMatchup = combo;
-    }
-  }
-
-  return bestMatchup;
-}
-
-/**
  * Generate a fair matchup based on game mode
- * Considers play count, skill level, and rest time
  */
 export function generateFairMatchup(players, gameMode) {
   const available = getAvailablePlayers(players);
@@ -118,56 +144,8 @@ export function generateFairMatchup(players, gameMode) {
   }
 }
 
-/**
- * Check if there are enough players to start a match
- */
 export function hasEnoughPlayers(players, gameMode, existingCourts = []) {
   const available = getAvailablePlayers(players);
   const requiredPlayers = PLAYERS_PER_COURT[gameMode];
-  
   return available.length >= requiredPlayers;
-}
-
-/**
- * Calculate average skill level for a team
- */
-export function calculateTeamAverageSkill(team) {
-  if (!team || team.length === 0) return 0;
-  const totalSkill = team.reduce((sum, p) => sum + calculateCompositeSkill(p), 0);
-  return totalSkill / team.length;
-}
-
-/**
- * Validate matchup fairness
- * Returns true if teams are reasonably balanced
- */
-export function isMatchupFair(team1, team2, threshold = 0.15) {
-  const skill1 = calculateTeamAverageSkill(team1);
-  const skill2 = calculateTeamAverageSkill(team2);
-  const difference = Math.abs(skill1 - skill2);
-  
-  // Teams should be within threshold of each other
-  return difference <= threshold;
-}
-
-/**
- * Get rest priority score (higher means more deserving of rest)
- * Based on consecutive games played without rest
- */
-export function getRestPriority(player) {
-  const consecutiveGames = player.consecutiveGames || 0;
-  const lastRestTime = player.lastRestTime || 0;
-  
-  // Players who played many consecutive games get higher priority
-  return consecutiveGames * 1000 + (Date.now() - lastRestTime);
-}
-
-/**
- * Determine who should rest (if applicable)
- * Returns players who have played the most consecutive games
- */
-export function getPlayersNeedingRest(players, minConsecutiveGames = 3) {
-  return players
-    .filter(p => (p.consecutiveGames || 0) >= minConsecutiveGames)
-    .sort((a, b) => getRestPriority(b) - getRestPriority(a));
 }

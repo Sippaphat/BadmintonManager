@@ -1,5 +1,6 @@
 import React from 'react';
 import PixelPlayer from './PixelPlayer';
+import { getImageUrl } from '../../utils/imageUrl';
 
 const PixelPlayerList = ({
     players,
@@ -57,7 +58,7 @@ const PixelPlayerList = ({
                                 {/* Mini Face */}
                                 <div className="w-full h-full overflow-hidden border-2 border-white rounded-none">
                                     {player.photo ? (
-                                        <img src={typeof player.photo === 'string' ? player.photo : URL.createObjectURL(player.photo)} alt="" className="w-full h-full object-cover pixel-art" />
+                                        <img src={getImageUrl(player.photo)} alt="" className="w-full h-full object-cover pixel-art" />
                                     ) : (
                                         <div className="w-full h-full bg-blue-500"></div>
                                     )}

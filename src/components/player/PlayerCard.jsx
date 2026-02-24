@@ -1,4 +1,6 @@
 import React from 'react';
+import { Crown, AlertTriangle, Coffee, Shield } from 'lucide-react';
+import { getImageUrl } from '../../utils/imageUrl';
 import { getInitials } from '../../utils/helpers';
 import { calculateWinRate } from '../../utils/eloSystem';
 
@@ -53,10 +55,16 @@ const PlayerCard = ({
 
       {/* Player Photo or Avatar */}
       <div className="flex flex-col items-center">
+        {player.isResting && (
+          <div className="absolute -top-2 -right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full shadow-sm z-10 flex items-center gap-1">
+            <Coffee className="w-3 h-3" /> Resting
+          </div>
+        )}
+
         {player.photo ? (
           <div className="w-full aspect-square rounded-lg overflow-hidden mb-2">
             <img
-              src={player.photo}
+              src={getImageUrl(player.photo)}
               alt={player.name}
               className="w-full h-full object-cover"
             />

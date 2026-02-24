@@ -34,6 +34,7 @@ const GamePage = ({
   onResetGame,
   onResetStats,
   t,
+  groupId,
 }) => {
   const [isFinishModalOpen, setFinishModalOpen] = useState(false);
   const [finishingCourtId, setFinishingCourtId] = useState(null);
@@ -403,6 +404,7 @@ const GamePage = ({
               sortMode={sortMode}
               showStats
               t={t}
+              groupId={groupId}
             />
 
             {/* Quick Stats */}

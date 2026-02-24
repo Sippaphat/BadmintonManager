@@ -5,6 +5,7 @@ import PixelPlayerList from './PixelPlayerList';
 import PixelPlayer from './PixelPlayer';
 import bgVideo from '../../assets/pixel/bg_video.mp4';
 import '../../styles/pixel-theme.css';
+import { getImageUrl } from '../../utils/imageUrl';
 
 const PixelLayout = ({
     courts,
@@ -217,7 +218,7 @@ const PixelLayout = ({
                                                 <div key={player.id} className="w-12 h-12 border-2 border-yellow-400 bg-gray-800 shadow-[0_0_10px_rgba(250,204,21,0.5)]">
                                                     {player.photo ? (
                                                         <img
-                                                            src={typeof player.photo === 'string' ? player.photo : URL.createObjectURL(player.photo)}
+                                                            src={getImageUrl(player.photo)}
                                                             alt=""
                                                             className="w-full h-full object-cover pixel-art"
                                                         />

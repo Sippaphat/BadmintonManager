@@ -65,7 +65,21 @@ const PlayerSchema = new mongoose.Schema({
   isResting: {
     type: Boolean,
     default: false
-  }
+  },
+  restCounter: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalRestRounds: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  partnerHistory: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Player'
+  }]
 }, {
   timestamps: true,
   toJSON: {
