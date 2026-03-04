@@ -35,30 +35,43 @@ services:
       - appnet
 
   # Tunnel #1: Backend hostname -> backend service
-  cloudflared-be:
-    image: cloudflare/cloudflared:latest
+cloudflared-be:
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARED_TOKEN_BE}
     container_name: cloudflared-badminton-be
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN_BE}
-    environment:
-      - TZ=Asia/Bangkok
     depends_on:
-      - backend
-    networks:
-      - appnet
-
-  # Tunnel #2: Frontend hostname -> frontend service
-  cloudflared-fe:
+      backend:
+        condition: service_started
+        required: true
+    environment:
+      TZ: Asia/Bangkok
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared-badminton-fe
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN_FE}
-    environment:
-      - TZ=Asia/Bangkok
-    depends_on:
-      - frontend
     networks:
-      - appnet
+      appnet: null
+    restart: unless-stopped
+
+  cloudflared-fe:
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARED_TOKEN_FE}
+    container_name: cloudflared-badminton-fe
+    depends_on:
+      frontend:
+        condition: service_started
+        required: true
+    environment:
+      TZ: Asia/Bangkok
+    image: cloudflare/cloudflared:latest
+    networks:
+      appnet: null
+    restart: unless-stopped
 
 networks:
   appnet:
