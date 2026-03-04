@@ -9,8 +9,9 @@ export function getAvailablePlayers(players) {
 }
 
 /**
- * Rule 3: Select players for the round. 
- * Choose players with the highest rest counter and the lowest total games played.
+ * Rule 3: Select players for the round.
+ * Choose players with the highest rest counter, then effectivePlayCount (dayPlayCount + dayPlayOffset).
+ * A negative dayPlayOffset gives players who missed games a head start on a new day.
  */
 export function getPlayerQueue(players) {
   return [...players].sort((a, b) => {
@@ -18,53 +19,73 @@ export function getPlayerQueue(players) {
     const restDiff = (b.restCounter || 0) - (a.restCounter || 0);
     if (restDiff !== 0) return restDiff;
 
-    // 2. Lowest total games played first
+    // 2. Lowest effective day play count first (dayPlayCount + dayPlayOffset)
+    const aEffective = (a.dayPlayCount || 0) + (a.dayPlayOffset || 0);
+    const bEffective = (b.dayPlayCount || 0) + (b.dayPlayOffset || 0);
+    const effectiveDiff = aEffective - bEffective;
+    if (effectiveDiff !== 0) return effectiveDiff;
+
+    // 3. Fallback: lowest total games played overall
     const gamesDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
     if (gamesDiff !== 0) return gamesDiff;
 
-    // 3. Fallback: lowest playCount
+    // 4. Fallback: lowest playCount
     const playDiff = (a.playCount || 0) - (b.playCount || 0);
     if (playDiff !== 0) return playDiff;
 
-    // 4. Fallback: longest wait time
+    // 5. Fallback: longest wait time
     return (a.lastFinishTime || 0) - (b.lastFinishTime || 0);
   });
 }
 
 /**
- * Rule 9 & 10: Apply pairing penalty and force rotation.
- * Checks if two players have a pairing penalty. Returns true if they are penalized.
+ * Generate a canonical pair key for a session pair set.
+ * Always sorts IDs so (A,B) === (B,A).
  */
-function hasPairingPenalty(player1, player2, allPlayersCount) {
+export function pairKey(id1, id2) {
+  const a = (id1 || '').toString();
+  const b = (id2 || '').toString();
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * Rule 1 (Highest Priority): Block pairs that already played together in this session.
+ * Rule 9 & 10: Apply persistent pairing penalty (partnerHistory).
+ * Returns true if two players should NOT be paired.
+ * @param {Object} player1
+ * @param {Object} player2
+ * @param {Set<string>} sessionPairsSet - Pairs already used in this session
+ */
+function hasPairingPenalty(player1, player2, sessionPairsSet) {
+  const id1 = (player1._id || player1.id || '').toString();
+  const id2 = (player2._id || player2.id || '').toString();
+
+  // Rule 1 (Highest Priority): Block same pair from current session
+  if (sessionPairsSet && sessionPairsSet.size > 0) {
+    const key = pairKey(id1, id2);
+    if (sessionPairsSet.has(key)) return true;
+  }
+
+  // Rule 9 & 10: Partner history penalty (persistent across sessions)
   const p1History = player1.partnerHistory || [];
   const p2History = player2.partnerHistory || [];
-
-  // If they are in each other's history, they have a penalty
-  const penalized = p1History.includes(player2._id || player2.id) || p2History.includes(player1._id || player1.id);
-
-  // Rule 10: Remove the pairing penalty only after those two players team up with every other person.
-  // We trigger the clear on the backend, so here we just check if it exists.
-  return penalized;
+  return p1History.includes(id2) || p2History.includes(id1);
 }
 
 /**
  * Rule 5 & 6: Sort by Elo and build teams [1, 4] vs [2, 3]
- * with Pairing Penalty check.
+ * with Pairing Penalty + Session pair block.
+ * @param {Array} available
+ * @param {Set<string>} sessionPairsSet
  */
-function generateDoublesMatchup(available) {
+function generateDoublesMatchup(available, sessionPairsSet) {
   if (available.length < 4) return null;
 
   const sortedQueue = getPlayerQueue(available);
 
-  // We need to pick 4 players that don't violate the pairing penalty when grouped as [Highest + Lowest, Next + Next]
-  // Because the queue might dictate top 4, but if putting the highest and lowest together violates a penalty we might need to swap the lowest with the next person in queue.
   let selectedPlayers = null;
   let team1 = null;
   let team2 = null;
-
-  // Find the first valid group of 4 players
-  // Start with top 4 in queue. If they fail the pairing penalty, we try swapping the 4th, 3rd, 2nd, 1st players with others down the line.
-  // For simplicity, we try the greedy approach: take top 4. check pairing. If invalid, swap out the lowest Elo player for the 5th in queue, etc.
 
   for (let i = 0; i < sortedQueue.length - 3; i++) {
     for (let j = i + 1; j < sortedQueue.length - 2; j++) {
@@ -76,14 +97,13 @@ function generateDoublesMatchup(available) {
           // Rule 5: Sort the selected players by their Elo rating.
           candidateGroup.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
 
-          // Rule 6: pair the highest rated player (0) with the lowest rated player (3).
-          // Pair the next highest player (1) with the next lowest player (2).
+          // Rule 6: pair highest (0) with lowest (3); next highest (1) with next (2).
           const candidateTeam1 = [candidateGroup[0], candidateGroup[3]];
           const candidateTeam2 = [candidateGroup[1], candidateGroup[2]];
 
-          // Check penalties
-          const team1Penalized = hasPairingPenalty(candidateTeam1[0], candidateTeam1[1], available.length);
-          const team2Penalized = hasPairingPenalty(candidateTeam2[0], candidateTeam2[1], available.length);
+          // Check penalties (session block has highest priority inside hasPairingPenalty)
+          const team1Penalized = hasPairingPenalty(candidateTeam1[0], candidateTeam1[1], sessionPairsSet);
+          const team2Penalized = hasPairingPenalty(candidateTeam2[0], candidateTeam2[1], sessionPairsSet);
 
           if (!team1Penalized && !team2Penalized) {
             team1 = candidateTeam1;
@@ -99,8 +119,7 @@ function generateDoublesMatchup(available) {
     if (selectedPlayers) break;
   }
 
-  // Fallback: If ALL combinations of 4 players have penalties (or we couldn't find a valid team), 
-  // just ignore the penalty for the top 4 in queue.
+  // Fallback: If ALL combinations are penalized, ignore penalty for top 4 in queue.
   if (!selectedPlayers) {
     const top4 = sortedQueue.slice(0, 4);
     top4.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
@@ -115,8 +134,6 @@ function generateSinglesMatchup(available) {
   if (available.length < 2) return null;
 
   const sortedQueue = getPlayerQueue(available);
-
-  // For singles, simply take top 2 in queue, ignore pairing penalty (it's 1v1)
   const top2 = sortedQueue.slice(0, 2);
   top2.sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
 
@@ -127,9 +144,12 @@ function generateSinglesMatchup(available) {
 }
 
 /**
- * Generate a fair matchup based on game mode
+ * Generate a fair matchup based on game mode.
+ * @param {Array} players
+ * @param {string} gameMode - 'doubles' | 'singles'
+ * @param {Set<string>} sessionPairsSet - Pair keys already used in this session (block same pair)
  */
-export function generateFairMatchup(players, gameMode) {
+export function generateFairMatchup(players, gameMode, sessionPairsSet = new Set()) {
   const available = getAvailablePlayers(players);
   const requiredPlayers = PLAYERS_PER_COURT[gameMode];
 
@@ -140,7 +160,7 @@ export function generateFairMatchup(players, gameMode) {
   if (gameMode === 'singles') {
     return generateSinglesMatchup(available);
   } else {
-    return generateDoublesMatchup(available);
+    return generateDoublesMatchup(available, sessionPairsSet);
   }
 }
 

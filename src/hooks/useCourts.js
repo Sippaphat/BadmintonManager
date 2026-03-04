@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { generateFairMatchup, hasEnoughPlayers } from '../utils/matchmaking';
+import { generateFairMatchup, hasEnoughPlayers, pairKey } from '../utils/matchmaking';
 import { updateMatchRatings } from '../utils/eloSystem';
 import { PLAYERS_PER_COURT } from '../constants/config';
 
@@ -9,6 +9,11 @@ import { PLAYERS_PER_COURT } from '../constants/config';
 export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, groupId) {
   const [courts, setCourts] = useState([]);
   const courtsRef = useRef([]);
+
+  // Session pairs: tracks which teammate pairs have already played together today.
+  // Stored as a Set of canonical pair keys ("id1|id2"), used to enforce Rule 1.
+  const sessionPairsRef = useRef(new Set());
+  const [sessionPairsCount, setSessionPairsCount] = useState(0); // for reactivity
 
   // Initialize courts
   useEffect(() => {
@@ -58,7 +63,8 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
       isPlaying: playingIds.has(p.id) || p.isPlaying
     }));
 
-    const matchup = generateFairMatchup(mockPlayers, gameMode);
+    // Pass the session pairs set to enforce same-pair blocking (Rule 1)
+    const matchup = generateFairMatchup(mockPlayers, gameMode, sessionPairsRef.current);
 
     if (!matchup) {
       return false;
@@ -284,6 +290,21 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
     // Update ELO ratings locally first so we can send the exact diffs to the backend
     const updatedRatings = updateMatchRatings(players, team1Ids, team2Ids, team1Won);
 
+    // --- Rule 1: Record the teammate pair for this session ---
+    const isDoubles = court.team1.length === 2;
+    if (isDoubles) {
+      // Record team1 pair
+      if (court.team1.length === 2) {
+        sessionPairsRef.current.add(pairKey(court.team1[0].id, court.team1[1].id));
+      }
+      // Record team2 pair
+      if (court.team2.length === 2) {
+        sessionPairsRef.current.add(pairKey(court.team2[0].id, court.team2[1].id));
+      }
+      // Trigger a re-render count so callers know the set changed
+      setSessionPairsCount(prev => prev + 1);
+    }
+
     // Record the match in backend (if groupId provided)
     if (groupId) {
       import('../services/matchService').then(({ recordMatch }) => {
@@ -322,9 +343,8 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
       });
     }
 
-    // Apply pairing penalty (partnerHistory)
+    // Apply pairing penalty (partnerHistory) — only to winning team in doubles
     const winningTeam = team1Won ? court.team1 : court.team2;
-    const isDoubles = winningTeam.length === 2;
 
     // Update player stats in backend
     for (const [playerId, playerData] of Object.entries(updatedRatings)) {
@@ -337,7 +357,6 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
           newHistory.push(partner.id);
         }
         // Force partner rotation: clear history if they've paired with almost everyone
-        // Subtract 1 for self, subtract more to roughly threshold
         const possiblePartners = players.length - 1;
         if (possiblePartners > 0 && newHistory.length >= Math.max(1, possiblePartners - 2)) {
           newHistory = [];
@@ -349,6 +368,7 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
         gamesPlayed: playerData.gamesPlayed,
         winCount: playerData.winCount,
         playCount: playerData.gamesPlayed, // Sync playCount with gamesPlayed
+        dayPlayCount: (p.dayPlayCount || 0) + 1, // Increment day counter
         restCounter: 0, // Reset rest counter after playing
         partnerHistory: newHistory
       });
@@ -386,6 +406,12 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
     })));
   }, []);
 
+  // Clear session pairs (call on new day or new game start)
+  const clearSessionPairs = useCallback(() => {
+    sessionPairsRef.current = new Set();
+    setSessionPairsCount(0);
+  }, []);
+
   return {
     courts,
     assignRandomMatch,
@@ -400,5 +426,7 @@ export function useCourts(numberOfCourts, gameMode, players, updatePlayerStats, 
     resetScore,
     finishMatch,
     clearAllCourts,
+    clearSessionPairs,
+    sessionPairsCount, // exposed so UI can reflect current session pair count
   };
 }

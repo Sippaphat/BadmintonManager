@@ -76,6 +76,17 @@ const PlayerSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  // Per-session play tracking for "New Day" fairness
+  dayPlayCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Negative offset from previous day (players who played fewer games get a head start)
+  dayPlayOffset: {
+    type: Number,
+    default: 0
+  },
   partnerHistory: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Player'

@@ -52,6 +52,11 @@ router.post(
   playerController.resetPlayerStats
 );
 
+router.post(
+  '/:groupId/players/new-day',
+  playerController.newDay
+);
+
 // Player queries
 router.get('/:groupId/players/leaderboard', playerController.getLeaderboard);
 router.get('/:groupId/players/queue', playerController.getQueue);

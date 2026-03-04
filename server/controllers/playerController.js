@@ -245,6 +245,51 @@ export const deletePlayer = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Start a new day session - compute fairness offsets and reset dayPlayCount
+ * @route   POST /api/groups/:groupId/players/new-day
+ * @access  Private
+ */
+export const newDay = asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+
+  // Check group access
+  const group = await Group.findById(groupId);
+
+  if (!group) {
+    throw new AppError('Group not found', 404);
+  }
+
+  if (!group.hasAccess(req.userId)) {
+    throw new AppError('Access denied', 403);
+  }
+
+  const players = await Player.find({ groupId, isActive: true });
+
+  if (players.length === 0) {
+    return res.json({ success: true, message: 'No players to update', players: [] });
+  }
+
+  // Find the max dayPlayCount across all players
+  const maxDayPlayCount = Math.max(...players.map(p => p.dayPlayCount || 0));
+
+  // Update each player: offset = -(max - theirCount), reset dayPlayCount to 0
+  const updatePromises = players.map(player => {
+    const offset = -Math.max(0, maxDayPlayCount - (player.dayPlayCount || 0));
+    player.dayPlayOffset = offset;
+    player.dayPlayCount = 0;
+    return player.save();
+  });
+
+  const updatedPlayers = await Promise.all(updatePromises);
+
+  res.json({
+    success: true,
+    message: 'New day started — play count offsets applied',
+    players: updatedPlayers.map(p => p.toJSON())
+  });
+});
+
+/**
  * @desc    Reset player stats
  * @route   POST /api/groups/:groupId/players/reset
  * @access  Private

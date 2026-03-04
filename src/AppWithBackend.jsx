@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { GoogleLogin, googleLogout } from "@react-oauth/google";
 import axios from "axios";
-import { bindPlayer } from "./services/playerService";
+import { bindPlayer, newDay as apiNewDay } from "./services/playerService";
 import { sendInvitation } from "./services/groupService";
 import "./App.css";
 
@@ -45,6 +45,10 @@ const TRANSLATIONS = {
     add: "+ เพิ่ม",
     startGame: "🚀 เริ่มการจัดการ",
     gameTitle: "สนามแข่ง",
+    newDay: "🌅 วันใหม่ (New Day)",
+    confirmNewDay:
+      "เริ่มวันใหม่? เกมที่เล่นวันนี้จะถูกคำนวณเป็น offset สำหรับวันพรุ่งนี้",
+    newDaySuccess: "เริ่มวันใหม่สำเร็จ!",
     resetGame: "ตั้งค่าใหม่",
     calcExpense: "💰 คิดเงิน",
     queue: "คิว (เล่นน้อยไปมาก)",
@@ -147,6 +151,10 @@ const TRANSLATIONS = {
     add: "+ Add",
     startGame: "🚀 Start Game",
     gameTitle: "Courts",
+    newDay: "🌅 New Day",
+    confirmNewDay:
+      "Start a new day? Today's games will be used to compute fairness offsets for the next session.",
+    newDaySuccess: "New day started!",
     resetGame: "Reset Game",
     calcExpense: "💰 Expenses",
     queue: "Queue (Least Played)",
@@ -241,7 +249,6 @@ const TRANSLATIONS = {
 // Remove trailing slash if present
 // const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 const API_BASE = "http://localhost:5000";
-
 
 // --- ELO / WEIGHT LOGIC ---
 function normBase(base, min = 0, max = 100) {
@@ -338,7 +345,7 @@ export default function AppWithBackend() {
   const handleLoginSuccess = async (credentialResponse) => {
     try {
       const res = await axios.post(`${API_BASE}/auth/google`, {
-        token: credentialResponse.credential
+        token: credentialResponse.credential,
       });
       const data = res.data;
       if (data.user && data.token) {
@@ -405,6 +412,14 @@ export default function AppWithBackend() {
   const [players, setPlayers] = useState([]);
   const [courts, setCourts] = useState([]);
 
+  // Session pairs: Set<string> of canonical pair keys ("id1|id2") for same-pair blocking (Rule 1)
+  const sessionPairsRef = useRef(new Set());
+  const pairKeyHelper = (id1, id2) => {
+    const a = String(id1),
+      b = String(id2);
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  };
+
   // --- STATE: EDIT MODAL ---
   const [isEditModalVisible, setEditModalVisible] = useState(false);
 
@@ -456,9 +471,12 @@ export default function AppWithBackend() {
   const handleShareGroup = async () => {
     if (!shareEmail.trim()) return;
     try {
-      const res = await axios.post(`${API_BASE}/groups/${selectedGroup._id}/share`, {
-        email: shareEmail
-      });
+      const res = await axios.post(
+        `${API_BASE}/groups/${selectedGroup._id}/share`,
+        {
+          email: shareEmail,
+        },
+      );
       alert(t("shareSuccess"));
     } catch (err) {
       alert(t("userNotFound"));
@@ -469,7 +487,8 @@ export default function AppWithBackend() {
     if (!newGroupName.trim()) return;
     try {
       const res = await axios.post(`${API_BASE}/groups`, {
-        name: newGroupName, userId: user._id
+        name: newGroupName,
+        userId: user._id,
       });
       const group = res.data;
       setGroups([...groups, group]);
@@ -493,6 +512,9 @@ export default function AppWithBackend() {
         baseSkill: p.baseSkill,
         elo: p.elo,
         gamesPlayed: p.gamesPlayed,
+        dayPlayCount: p.dayPlayCount || 0,
+        dayPlayOffset: p.dayPlayOffset || 0,
+        partnerHistory: p.partnerHistory || [],
         isPlaying: false,
         isResting: false,
       }));
@@ -519,7 +541,7 @@ export default function AppWithBackend() {
 
       const res = await axios.post(
         `${API_BASE}/groups/${selectedGroup._id}/players`,
-        formData
+        formData,
       );
 
       const newP = res.data;
@@ -580,7 +602,10 @@ export default function AppWithBackend() {
         formData.append("photo", tempPhoto);
       }
 
-      const res = await axios.put(`${API_BASE}/players/${editingPlayer.id}`, formData);
+      const res = await axios.put(
+        `${API_BASE}/players/${editingPlayer.id}`,
+        formData,
+      );
 
       const updatedP = res.data;
       const newPhotoUrl = updatedP.photo;
@@ -628,8 +653,8 @@ export default function AppWithBackend() {
     try {
       await bindPlayer(selectedGroup._id, playerId, email);
       // Update local state to show bound status
-      const updatedPlayers = players.map(p =>
-        p.id === playerId ? { ...p, userId: 'bound' } : p // We don't have the full user object but 'bound' is truthy
+      const updatedPlayers = players.map(
+        (p) => (p.id === playerId ? { ...p, userId: "bound" } : p), // We don't have the full user object but 'bound' is truthy
       );
       setPlayers(updatedPlayers);
       alert("Player bound successfully!");
@@ -671,9 +696,40 @@ export default function AppWithBackend() {
 
   const resetGame = () => {
     if (window.confirm(t("confirmResetGame"))) {
+      sessionPairsRef.current = new Set(); // Reset session pairs on game reset
       setIsGameStarted(false);
       setPlayers(players.map((p) => ({ ...p, isPlaying: false })));
       setCourts([]);
+    }
+  };
+
+  const handleNewDay = async () => {
+    if (!selectedGroup) return;
+    if (!window.confirm(t("confirmNewDay"))) return;
+    try {
+      const result = await apiNewDay(selectedGroup._id);
+      // Update local player state with new offsets (dayPlayCount reset to 0, offsets applied)
+      setPlayers((prev) =>
+        prev.map((p) => {
+          const updated = result.players.find(
+            (rp) => rp._id === p.id || rp.id === p.id,
+          );
+          if (updated) {
+            return {
+              ...p,
+              dayPlayCount: updated.dayPlayCount || 0,
+              dayPlayOffset: updated.dayPlayOffset || 0,
+            };
+          }
+          return p;
+        }),
+      );
+      // Reset session pairs for the new day
+      sessionPairsRef.current = new Set();
+      alert(t("newDaySuccess"));
+    } catch (err) {
+      console.error("New Day failed", err);
+      alert("Failed to start new day.");
     }
   };
 
@@ -686,7 +742,7 @@ export default function AppWithBackend() {
       // But stats should probably persist? I'll assume stats persist.
       // I will implement a loop to reset all for now.
       const promises = players.map((p) =>
-        axios.put(`${API_BASE}/players/${p.id}/reset`)
+        axios.put(`${API_BASE}/players/${p.id}/reset`),
       );
       await Promise.all(promises);
 
@@ -705,7 +761,7 @@ export default function AppWithBackend() {
   const resetPlayCounts = async () => {
     if (window.confirm(t("confirmResetPlay"))) {
       const promises = players.map((p) =>
-        axios.put(`${API_BASE}/players/${p.id}/stats`, { playCount: 0 })
+        axios.put(`${API_BASE}/players/${p.id}/stats`, { playCount: 0 }),
       );
       await Promise.all(promises);
 
@@ -716,7 +772,7 @@ export default function AppWithBackend() {
   const resetWinCounts = async () => {
     if (window.confirm(t("confirmResetWin"))) {
       const promises = players.map((p) =>
-        axios.put(`${API_BASE}/players/${p.id}/stats`, { winCount: 0 })
+        axios.put(`${API_BASE}/players/${p.id}/stats`, { winCount: 0 }),
       );
       await Promise.all(promises);
 
@@ -835,66 +891,95 @@ END:VCALENDAR`;
     if (availablePlayers.length < requiredPlayers) {
       alert(
         t("notEnoughPlayers") +
-        (players.some((p) => p.isResting && !p.isPlaying)
-          ? " " + t("resting")
-          : ""),
+          (players.some((p) => p.isResting && !p.isPlaying)
+            ? " " + t("resting")
+            : ""),
       );
       return;
     }
-    // Randomization logic with weights
+
+    // Sort by effective play count: (dayPlayCount + dayPlayOffset) — Rule 2 fairness
     const sortedPlayers = [...availablePlayers].sort((a, b) => {
+      const aEff = (a.dayPlayCount || 0) + (a.dayPlayOffset || 0);
+      const bEff = (b.dayPlayCount || 0) + (b.dayPlayOffset || 0);
+      if (aEff !== bEff) return aEff - bEff;
       if (a.playCount === b.playCount) return Math.random() - 0.5;
       return a.playCount - b.playCount;
     });
     const selectedPlayers = sortedPlayers.slice(0, requiredPlayers);
 
     let finalSelection = selectedPlayers;
+    let team1Final = [],
+      team2Final = [];
 
-    // Smart Pairing for Doubles
+    // Smart Pairing for Doubles with Session Pair Block (Rule 1)
     if (gameMode === "doubles" && selectedPlayers.length === 4) {
       const combinations = [
         [
           [0, 1],
           [2, 3],
-        ], // (0,1) vs (2,3)
+        ],
         [
           [0, 2],
           [1, 3],
-        ], // (0,2) vs (1,3)
+        ],
         [
           [0, 3],
           [1, 2],
-        ], // (0,3) vs (1,2)
+        ],
       ];
 
+      let bestCombo = null;
       let bestDiff = Infinity;
-      let bestCombo = combinations[0];
 
-      combinations.forEach((combo) => {
-        const p1 = selectedPlayers[combo[0][0]];
-        const p2 = selectedPlayers[combo[0][1]];
-        const p3 = selectedPlayers[combo[1][0]];
-        const p4 = selectedPlayers[combo[1][1]];
+      // Composite skill helper
+      const cs = (p) => (p.elo || 1500) * 0.6 + (p.baseSkill || 50) * 6;
 
-        const skillA = compositeSkill(p1) + compositeSkill(p2);
-        const skillB = compositeSkill(p3) + compositeSkill(p4);
+      for (const combo of combinations) {
+        const t1p0 = selectedPlayers[combo[0][0]];
+        const t1p1 = selectedPlayers[combo[0][1]];
+        const t2p0 = selectedPlayers[combo[1][0]];
+        const t2p1 = selectedPlayers[combo[1][1]];
 
-        const diff = Math.abs(skillA - skillB);
+        // Rule 1: Check session pair block
+        const pair1Blocked = sessionPairsRef.current.has(
+          pairKeyHelper(t1p0.id, t1p1.id),
+        );
+        const pair2Blocked = sessionPairsRef.current.has(
+          pairKeyHelper(t2p0.id, t2p1.id),
+        );
 
+        if (pair1Blocked || pair2Blocked) continue; // Skip blocked combos
+
+        const diff = Math.abs(cs(t1p0) + cs(t1p1) - (cs(t2p0) + cs(t2p1)));
         if (diff < bestDiff) {
           bestDiff = diff;
           bestCombo = combo;
         }
-      });
+      }
 
-      finalSelection = [
+      // Fallback: if all combos are blocked, use least-bad (first combo)
+      if (!bestCombo) bestCombo = combinations[0];
+
+      team1Final = [
         selectedPlayers[bestCombo[0][0]],
         selectedPlayers[bestCombo[0][1]],
+      ];
+      team2Final = [
         selectedPlayers[bestCombo[1][0]],
         selectedPlayers[bestCombo[1][1]],
       ];
+      finalSelection = [...team1Final, ...team2Final];
     } else {
       finalSelection = [...selectedPlayers].sort(() => Math.random() - 0.5);
+      team1Final =
+        gameMode === "singles"
+          ? [finalSelection[0]]
+          : finalSelection.slice(0, 2);
+      team2Final =
+        gameMode === "singles"
+          ? [finalSelection[1]]
+          : finalSelection.slice(2, 4);
     }
 
     const updatedCourts = courts.map((c) => {
@@ -909,7 +994,7 @@ END:VCALENDAR`;
       return p;
     });
 
-    // Sync play count
+    // Sync play count to backend
     finalSelection.forEach((p) => {
       axios.put(`${API_BASE}/players/${p.id}/stats`, {
         playCount: p.playCount + 1,
@@ -952,6 +1037,16 @@ END:VCALENDAR`;
       );
     }
 
+    // --- Rule 1: Record teammate pairs for this session ---
+    if (gameMode === "doubles") {
+      const t1arr = [...team1Ids];
+      const t2arr = [...team2Ids];
+      if (t1arr.length === 2)
+        sessionPairsRef.current.add(pairKeyHelper(t1arr[0], t1arr[1]));
+      if (t2arr.length === 2)
+        sessionPairsRef.current.add(pairKeyHelper(t2arr[0], t2arr[1]));
+    }
+
     // Update players
     const updatedPlayers = players.map((p) => {
       let newP = { ...p };
@@ -969,12 +1064,18 @@ END:VCALENDAR`;
         if (winnerTeam === "team1" && team1Ids.has(p.id)) newWinCount++;
         if (winnerTeam === "team2" && team2Ids.has(p.id)) newWinCount++;
 
+        // Rule 2: Increment dayPlayCount for each player who finished a match
+        const newDayPlayCount = (p.dayPlayCount || 0) + 1;
+        newP.dayPlayCount = newDayPlayCount;
         newP.winCount = newWinCount;
         newP.isPlaying = false;
         changed = true;
 
         // Sync Stats
-        const statsBody = { winCount: newWinCount };
+        const statsBody = {
+          winCount: newWinCount,
+          dayPlayCount: newDayPlayCount,
+        };
         if (eloUpdates[p.id]) {
           statsBody.elo = newP.elo;
           statsBody.gamesPlayed = newP.gamesPlayed;
@@ -1038,7 +1139,9 @@ END:VCALENDAR`;
     const updatedPlayers = players.map((p) => {
       if (p.id === playerId) {
         // Sync playCount
-        axios.put(`${API_BASE}/players/${p.id}/stats`, { playCount: p.playCount + 1 });
+        axios.put(`${API_BASE}/players/${p.id}/stats`, {
+          playCount: p.playCount + 1,
+        });
         return { ...p, isPlaying: true, playCount: p.playCount + 1 };
       }
       return p;
@@ -1961,7 +2064,6 @@ END:VCALENDAR`;
             {t("target").replace(":", "")} {gameTarget}
           </h3>
           <div className="courtsGrid">
-
             {courts.map((court) => {
               let team1Players, team2Players;
               if (gameMode === "singles") {
@@ -2237,14 +2339,18 @@ END:VCALENDAR`;
                     <div>
                       <div className="emptyCourtMessage">
                         <span className="emptyCourtIcon">🏸</span>
-                        <span className="emptyCourtText">{t("emptyCourt")}</span>
+                        <span className="emptyCourtText">
+                          {t("emptyCourt")}
+                        </span>
                       </div>
                       <div className="courtButtonsRow">
                         <button
                           className="startMatchBtn"
                           onClick={() => assignMatchToCourt(court.id)}
                         >
-                          <span className="startMatchBtnText">{t("random")}</span>
+                          <span className="startMatchBtnText">
+                            {t("random")}
+                          </span>
                         </button>
                         <button
                           className="customBtn"
@@ -2406,6 +2512,24 @@ END:VCALENDAR`;
               padding: "0 5px",
             }}
           >
+            {/* New Day button — resets dayPlayCount with fairness offsets */}
+            <button
+              onClick={handleNewDay}
+              style={{
+                background: `linear-gradient(135deg, #0288d1, #26c6da)`,
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                borderRadius: 8,
+                padding: "10px 16px",
+                fontSize: 14,
+                fontWeight: 600,
+                textAlign: "left",
+                marginBottom: 6,
+              }}
+            >
+              {t("newDay")}
+            </button>
             <div style={{ display: "flex", gap: 15 }}>
               <button
                 onClick={resetPlayCounts}

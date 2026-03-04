@@ -79,6 +79,14 @@ export async function resetPlayerStats(groupId, resetType = 'all') {
   });
   return response.data;
 }
+
+/**
+ * Start a new day — computes fairness offsets from previous session and resets dayPlayCount
+ */
+export async function newDay(groupId) {
+  const response = await api.post(`/api/groups/${groupId}/players/new-day`);
+  return response.data; // { success, message, players }
+}
 /**
  * Bind player to a user account
  */
