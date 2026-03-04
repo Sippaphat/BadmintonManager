@@ -1,28 +1,24 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # ----------------------------
-  # 1. Backend Service (Node API)
-  # ----------------------------
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     container_name: badminton-api
     ports:
-     - "5000:5000"
+      - "5000:5000"
     env_file:
       - ./server/.env
     environment:
       - CORS_ORIGIN=http://localhost:9009,http://localhost:5173,https://badminton-api.xenocer.com,https://badminton.xenocer.com
       - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
     volumes:
-      # CRITICAL: This saves uploaded photos on your server disk
       - ./server/uploads:/app/server/uploads
+    restart: unless-stopped
+    networks:
+      - appnet
 
-  # ----------------------------
-  # 2. Frontend Service (React)
-  # ----------------------------
   frontend:
     build:
       context: .
@@ -31,7 +27,26 @@ services:
         VITE_API_BASE: https://badminton-api.xenocer.com
     container_name: badminton-web
     ports:
-      - "9009:9009"  # Expose on standard web port
-    restart: always
+      - "9009:9009"
+    restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - appnet
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-badminton
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    environment:
+      - TZ=Asia/Bangkok
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge
