@@ -11,7 +11,7 @@ services:
     env_file:
       - ./server/.env
     environment:
-      - CORS_ORIGIN=http://localhost:9009,http://localhost:5173,https://badminton-api.xenocer.com,https://badminton.xenocer.com
+      - CORS_ORIGIN=https://badminton.xenocer.com,http://localhost:9009,http://localhost:5173
       - GOOGLE_CLIENT_ID=634347628772-ot3d906un0ar1oq5p3b98tci67l99non.apps.googleusercontent.com
     volumes:
       - ./server/uploads:/app/server/uploads
@@ -34,15 +34,28 @@ services:
     networks:
       - appnet
 
-  cloudflared:
+  # Tunnel #1: Backend hostname -> backend service
+  cloudflared-be:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared-badminton
+    container_name: cloudflared-badminton-be
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN_BE}
     environment:
       - TZ=Asia/Bangkok
     depends_on:
       - backend
+    networks:
+      - appnet
+
+  # Tunnel #2: Frontend hostname -> frontend service
+  cloudflared-fe:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-badminton-fe
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN_FE}
+    environment:
+      - TZ=Asia/Bangkok
+    depends_on:
       - frontend
     networks:
       - appnet
